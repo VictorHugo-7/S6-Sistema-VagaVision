@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Garagem Central",
+    "slug": "garagem-central",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#1c1e22"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1c1e22"
+      }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}

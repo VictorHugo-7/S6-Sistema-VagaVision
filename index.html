@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garagem Central · Vagas em tempo real</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --asfalto: #23262b;
+    --asfalto-2: #2c3036;
+    --concreto: #3a3f47;
+    --amarelo: #f2b134;
+    --livre: #36b37e;
+    --livre-dim: #1f6b4c;
+    --ocupada: #e0524a;
+    --ocupada-dim: #7d2e2a;
+    --texto: #f3f0e8;
+    --texto-fraco: #a8aab0;
+    --painel: rgba(30, 32, 37, 0.82);
+    --borda: rgba(255,255,255,0.08);
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--asfalto);
+    font-family:'Inter', sans-serif;
+    color:var(--texto);
+    overflow:hidden;
+  }
+
+  #scene-container{
+    position:fixed; inset:0;
+  }
+  #scene-container canvas{ display:block; cursor:grab; }
+  #scene-container canvas.dragging{ cursor:grabbing; }
+
+  .hud{
+    position:fixed;
+    pointer-events:none;
+    z-index:10;
+  }
+  .hud > *{ pointer-events:auto; }
+
+  /* Topo: marca e seletor de nível */
+  .topbar{
+    top:0; left:0; right:0;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    padding:22px 28px;
+  }
+
+  .marca{
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .marca .selo{
+    font-family:'Oswald', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:0.5px;
+    color:var(--texto);
+    text-shadow:0 2px 10px rgba(0,0,0,0.5);
+  }
+  .marca .selo span{ color:var(--amarelo); }
+  .marca .sub{
+    font-size:12.5px;
+    color:var(--texto-fraco);
+    text-shadow:0 1px 6px rgba(0,0,0,0.6);
+  }
+
+  .controles-topo{
+    display:flex;
+    gap:10px;
+  }
+
+  .niveis{
+    display:flex;
+    background:var(--painel);
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:4px;
+    backdrop-filter: blur(10px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.35);
+  }
+  .niveis button{
+    font-family:'Oswald', sans-serif;
+    font-size:14px;
+    font-weight:500;
+    letter-spacing:0.3px;
+    padding:9px 18px;
+    border:none;
+    background:transparent;
+    color:var(--texto-fraco);
+    border-radius:7px;
+    cursor:pointer;
+    transition: background .18s ease, color .18s ease;
+  }
+  .niveis button.ativo{
+    background:var(--amarelo);
+    color:#23200f;
+  }
+  .niveis button:not(.ativo):hover{
+    color:var(--texto);
+    background:rgba(255,255,255,0.06);
+  }
+
+  /* Painel de estatísticas */
+  .painel-status{
+    left:28px; top:96px;
+    width:250px;
+    background:var(--painel);
+    border:1px solid var(--borda);
+    border-radius:14px;
+    padding:20px 20px 18px;
+    backdrop-filter: blur(10px);
+    box-shadow:0 12px 30px rgba(0,0,0,0.4);
+  }
+
+  .painel-status .linha-numeros{
+    display:flex;
+    gap:14px;
+    margin-bottom:16px;
+  }
+  .bloco-numero{ flex:1; }
+  .bloco-numero .num{
+    font-family:'Oswald', sans-serif;
+    font-size:34px;
+    font-weight:600;
+    line-height:1;
+  }
+  .bloco-numero.livres .num{ color:var(--livre); }
+  .bloco-numero.ocupadas .num{ color:var(--ocupada); }
+  .bloco-numero .rotulo{
+    font-size:11.5px;
+    color:var(--texto-fraco);
+    margin-top:4px;
+  }
+
+  .medidor{
+    height:8px;
+    border-radius:5px;
+    background:var(--livre-dim);
+    overflow:hidden;
+    margin-bottom:6px;
+  }
+  .medidor .preenchido{
+    height:100%;
+    background:var(--ocupada);
+    width:0%;
+    transition: width .5s cubic-bezier(.4,0,.2,1);
+  }
+  .medidor-legenda{
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--texto-fraco);
+    margin-bottom:18px;
+  }
+
+  .acoes{ display:flex; flex-direction:column; gap:8px; }
+  .btn{
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:10px 14px;
+    border-radius:8px;
+    border:1px solid var(--borda);
+    background:rgba(255,255,255,0.04);
+    color:var(--texto);
+    cursor:pointer;
+    text-align:left;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .btn:hover{ background:rgba(255,255,255,0.1); }
+  .btn:active{ transform:scale(0.98); }
+  .btn.principal{
+    background:var(--amarelo);
+    color:#23200f;
+    border-color:transparent;
+  }
+  .btn.principal:hover{ background:#f6c052; }
+
+  /* Legenda cores */
+  .legenda{
+    left:28px;
+    bottom:26px;
+    display:flex;
+    gap:16px;
+    background:var(--painel);
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:10px 16px;
+    backdrop-filter: blur(10px);
+    font-size:12.5px;
+    color:var(--texto-fraco);
+  }
+  .legenda .item{ display:flex; align-items:center; gap:7px; }
+  .legenda .ponto{ width:10px; height:10px; border-radius:2px; }
+  .legenda .ponto.livre{ background:var(--livre); }
+  .legenda .ponto.ocupada{ background:var(--ocupada); }
+
+  /* Painel de detalhe da vaga */
+  .painel-vaga{
+    right:28px;
+    bottom:26px;
+    width:230px;
+    background:var(--painel);
+    border:1px solid var(--borda);
+    border-radius:14px;
+    padding:18px 20px;
+    backdrop-filter: blur(10px);
+    box-shadow:0 12px 30px rgba(0,0,0,0.4);
+    transform: translateY(12px);
+    opacity:0;
+    transition: transform .25s ease, opacity .25s ease;
+  }
+  .painel-vaga.visivel{ transform:translateY(0); opacity:1; }
+  .painel-vaga .codigo{
+    font-family:'Oswald', sans-serif;
+    font-size:26px;
+    font-weight:600;
+  }
+  .painel-vaga .pill{
+    display:inline-block;
+    margin-top:6px;
+    font-size:11.5px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:20px;
+  }
+  .painel-vaga .pill.livre{ background:rgba(54,179,126,0.18); color:var(--livre); }
+  .painel-vaga .pill.ocupada{ background:rgba(224,82,74,0.18); color:var(--ocupada); }
+  .painel-vaga .detalhe{
+    margin-top:10px;
+    font-size:12.5px;
+    color:var(--texto-fraco);
+    line-height:1.5;
+  }
+  .painel-vaga .dica{
+    margin-top:12px;
+    font-size:11px;
+    color:#767881;
+  }
+
+  .instrucao{
+    right:28px; top:96px;
+    font-size:11.5px;
+    color:var(--texto-fraco);
+    background:var(--painel);
+    border:1px solid var(--borda);
+    border-radius:10px;
+    padding:9px 14px;
+    backdrop-filter: blur(10px);
+    max-width:190px;
+    text-align:right;
+    line-height:1.5;
+  }
+
+  @media (max-width: 720px){
+    .instrucao{ display:none; }
+    .painel-status{ width:200px; padding:16px; }
+    .bloco-numero .num{ font-size:26px; }
+    .painel-vaga{ width:190px; }
+    .marca .selo{ font-size:18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="scene-container"></div>
+
+<div class="topbar hud">
+  <div class="marca">
+    <div class="selo">GARAGEM <span>CENTRAL</span></div>
+    <div class="sub">Monitoramento de vagas · simulação em tempo real</div>
+  </div>
+  <div class="controles-topo">
+    <div class="niveis modo-viz">
+      <button class="ativo" data-modo="3d">3D</button>
+      <button data-modo="2d">2D</button>
+    </div>
+    <div class="niveis">
+      <button class="ativo" data-nivel="0">Nível 1</button>
+      <button data-nivel="1">Nível 2</button>
+    </div>
+  </div>
+</div>
+
+<div class="painel-status hud">
+  <div class="linha-numeros">
+    <div class="bloco-numero livres">
+      <div class="num" id="num-livres">0</div>
+      <div class="rotulo">vagas livres</div>
+    </div>
+    <div class="bloco-numero ocupadas">
+      <div class="num" id="num-ocupadas">0</div>
+      <div class="rotulo">ocupadas</div>
+    </div>
+  </div>
+  <div class="medidor"><div class="preenchido" id="medidor-fill"></div></div>
+  <div class="medidor-legenda">
+    <span id="pct-ocupacao">0% ocupado</span>
+    <span id="total-vagas">0 vagas</span>
+  </div>
+  <div class="acoes">
+    <button class="btn principal" id="btn-sortear">Sortear ocupação</button>
+    <button class="btn" id="btn-liberar">Liberar todas as vagas</button>
+  </div>
+</div>
+
+<div class="instrucao hud">
+  Arraste para girar (3D) ou mover (2D) · role para aproximar · clique numa vaga para alterar o status
+</div>
+
+<div class="legenda hud">
+  <div class="item"><span class="ponto livre"></span>Livre</div>
+  <div class="item"><span class="ponto ocupada"></span>Ocupada</div>
+</div>
+
+<div class="painel-vaga hud" id="painel-vaga">
+  <div class="codigo" id="vaga-codigo">—</div>
+  <div class="pill" id="vaga-pill">—</div>
+  <div class="detalhe" id="vaga-detalhe"></div>
+  <div class="dica">Clique novamente na vaga para reverter</div>
+</div>
+
+<script>
+(function(){
+
+  // ---------- Configuração do pátio ----------
+  const COLS = 10;
+  const SPOT_W = 2.6;
+  const SPOT_D = 4.8;
+  const AISLE = 6.4;
+  const NUM_NIVEIS = 2;
+  const LARGURA_PATIO = COLS * SPOT_W + 4;
+  const PROFUNDIDADE_PATIO = AISLE + 2 * SPOT_D + 4;
+
+  const CORES_CARRO = [0xcfd3d6, 0x35415c, 0xeef0ef, 0x4b4f57, 0x6b7159, 0x8a6f4e];
+
+  let nivelAtual = 0;
+  const niveisGrupos = [];
+  const niveisDados = []; // array por nivel de spots {id, code, status, mesh overlay, carroGroup, x, z, row}
+  let vagaSelecionada = null;
+
+  // ---------- Three.js setup ----------
+  const container = document.getElementById('scene-container');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1c1e22);
+  scene.fog = new THREE.Fog(0x1c1e22, 40, 95);
+
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth/window.innerHeight, 0.1, 300);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  container.appendChild(renderer.domElement);
+
+  // Câmera ortográfica (vista de planta / 2D)
+  let modoAtual = '3d';
+  let zoomOrto = 1;
+  const orthoFrustumBase = Math.max(LARGURA_PATIO, PROFUNDIDADE_PATIO) * 0.6;
+  const cameraOrto = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 300);
+  cameraOrto.up.set(0, 0, -1);
+  let activeCamera = camera;
+
+  function atualizarFrustumOrto(){
+    const aspect = window.innerWidth / window.innerHeight;
+    const alturaVisivel = orthoFrustumBase / zoomOrto;
+    const larguraVisivel = alturaVisivel * aspect;
+    cameraOrto.left = -larguraVisivel;
+    cameraOrto.right = larguraVisivel;
+    cameraOrto.top = alturaVisivel;
+    cameraOrto.bottom = -alturaVisivel;
+    cameraOrto.updateProjectionMatrix();
+  }
+  atualizarFrustumOrto();
+
+  // Luzes
+  const hemi = new THREE.HemisphereLight(0xdfe6ee, 0x23262b, 0.85);
+  scene.add(hemi);
+
+  const sol = new THREE.DirectionalLight(0xfff2d8, 0.9);
+  sol.position.set(24, 32, 14);
+  scene.add(sol);
+
+  const preenchimento = new THREE.DirectionalLight(0x6f8cff, 0.25);
+  preenchimento.position.set(-20, 14, -18);
+  scene.add(preenchimento);
+
+  // ---------- Câmera orbital (implementação simples, sem addons) ----------
+  const alvo = new THREE.Vector3(0, 0, 0);
+  let raio = 34, raioAlvo = 34;
+  let theta = Math.PI * 0.28, thetaAlvo = theta;   // horizontal
+  let phi = Math.PI * 0.32, phiAlvo = phi;         // vertical
+  const PHI_MIN = 0.14, PHI_MAX = 1.15;
+
+  function atualizarCamera(){
+    camera.position.x = alvo.x + raio * Math.sin(phi) * Math.sin(theta);
+    camera.position.y = alvo.y + raio * Math.cos(phi);
+    camera.position.z = alvo.z + raio * Math.sin(phi) * Math.cos(theta);
+    camera.lookAt(alvo);
+  }
+
+  let arrastando = false, ultimoX = 0, ultimoY = 0;
+  const canvasEl = renderer.domElement;
+
+  canvasEl.addEventListener('pointerdown', (e)=>{
+    arrastando = true; ultimoX = e.clientX; ultimoY = e.clientY;
+    canvasEl.classList.add('dragging');
+  });
+  window.addEventListener('pointerup', ()=>{ arrastando = false; canvasEl.classList.remove('dragging'); });
+  window.addEventListener('pointermove', (e)=>{
+    if(!arrastando) return;
+    const dx = e.clientX - ultimoX, dy = e.clientY - ultimoY;
+    ultimoX = e.clientX; ultimoY = e.clientY;
+    if(modoAtual === '3d'){
+      thetaAlvo -= dx * 0.006;
+      phiAlvo = Math.min(PHI_MAX, Math.max(PHI_MIN, phiAlvo - dy * 0.006));
+    } else {
+      const fator = (orthoFrustumBase / zoomOrto) * 0.0026;
+      alvo.x -= dx * fator;
+      alvo.z -= dy * fator;
+    }
+  });
+  canvasEl.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    if(modoAtual === '3d'){
+      raioAlvo = Math.min(60, Math.max(14, raioAlvo + e.deltaY * 0.02));
+    } else {
+      zoomOrto = Math.min(3.2, Math.max(0.5, zoomOrto - e.deltaY * 0.0015));
+      atualizarFrustumOrto();
+    }
+  }, { passive:false });
+
+  // ---------- Construção de um nível do pátio ----------
+  function construirNivel(indice){
+    const grupo = new THREE.Group();
+    grupo.visible = (indice === 0);
+
+    const larguraTotal = LARGURA_PATIO;
+    const profundidadeTotal = PROFUNDIDADE_PATIO;
+
+    // Piso asfalto
+    const pisoGeo = new THREE.PlaneGeometry(larguraTotal, profundidadeTotal);
+    const pisoMat = new THREE.MeshStandardMaterial({ color: 0x2b2e34, roughness:0.95, metalness:0.02 });
+    const piso = new THREE.Mesh(pisoGeo, pisoMat);
+    piso.rotation.x = -Math.PI/2;
+    piso.position.y = 0;
+    grupo.add(piso);
+
+    // Faixa central (via de circulação)
+    const viaGeo = new THREE.PlaneGeometry(larguraTotal - 1, AISLE - 0.6);
+    const viaMat = new THREE.MeshStandardMaterial({ color: 0x33373e, roughness:0.9 });
+    const via = new THREE.Mesh(viaGeo, viaMat);
+    via.rotation.x = -Math.PI/2;
+    via.position.set(0, 0.005, 0);
+    grupo.add(via);
+
+    const dados = [];
+    const linhaMat = new THREE.LineBasicMaterial({ color: 0xdedfd8 });
+
+    const rows = [
+      { key:'A', z: -(AISLE/2 + SPOT_D/2), giro: Math.PI },
+      { key:'B', z:  (AISLE/2 + SPOT_D/2), giro: 0 }
+    ];
+
+    rows.forEach(row=>{
+      for(let c=0; c<COLS; c++){
+        const x = (c - (COLS-1)/2) * SPOT_W;
+        const code = row.key + (c+1);
+
+        // Contorno pintado da vaga
+        const contornoGeo = new THREE.PlaneGeometry(SPOT_W - 0.18, SPOT_D - 0.3);
+        const edges = new THREE.EdgesGeometry(contornoGeo);
+        const contorno = new THREE.LineSegments(edges, linhaMat);
+        contorno.rotation.x = -Math.PI/2;
+        contorno.position.set(x, 0.01, row.z);
+        grupo.add(contorno);
+
+        // Overlay de status (alvo de clique)
+        const overlayGeo = new THREE.PlaneGeometry(SPOT_W - 0.5, SPOT_D - 0.9);
+        const overlayMat = new THREE.MeshBasicMaterial({ color: 0x36b37e, transparent:true, opacity:0.38 });
+        const overlay = new THREE.Mesh(overlayGeo, overlayMat);
+        overlay.rotation.x = -Math.PI/2;
+        overlay.position.set(x, 0.02, row.z);
+        overlay.userData = { spotId: dados.length, nivel: indice };
+        grupo.add(overlay);
+
+        // Rótulo (sprite)
+        const sprite = criarRotulo(code);
+        sprite.position.set(x, 1.55, row.z);
+        grupo.add(sprite);
+
+        // Carro (criado sob demanda)
+        const carro = criarCarro();
+        carro.position.set(x, 0, row.z);
+        carro.rotation.y = row.giro;
+        carro.visible = false;
+        grupo.add(carro);
+
+        dados.push({
+          id: dados.length,
+          code, row: row.key, x, z: row.z,
+          status: 'livre',
+          overlay, carro,
+          minutosOcupada: 0
+        });
+      }
+    });
+
+    // Colunas de sustentação decorativas nas bordas
+    for(let c=-1; c<=1; c+=2){
+      const colGeo = new THREE.BoxGeometry(0.9, 5.2, 0.9);
+      const colMat = new THREE.MeshStandardMaterial({ color:0x45494f, roughness:0.85 });
+      for(let side=-1; side<=1; side+=2){
+        const col = new THREE.Mesh(colGeo, colMat);
+        col.position.set(c * (larguraTotal/2 - 1), 2.6, side * (profundidadeTotal/2 - 1));
+        grupo.add(col);
+      }
+    }
+
+    scene.add(grupo);
+    niveisGrupos.push(grupo);
+    niveisDados.push(dados);
+  }
+
+  function criarRotulo(texto){
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.font = '600 40px Oswald, sans-serif';
+    ctx.fillStyle = 'rgba(243,240,232,0.92)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(texto, 64, 34);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent:true, depthWrite:false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.5, 0.75, 1);
+    return sprite;
+  }
+
+  function criarCarro(){
+    const grupo = new THREE.Group();
+    const cor = CORES_CARRO[Math.floor(Math.random()*CORES_CARRO.length)];
+    const matCorpo = new THREE.MeshStandardMaterial({ color: cor, roughness:0.45, metalness:0.35 });
+    const matVidro = new THREE.MeshStandardMaterial({ color: 0x1b1e22, roughness:0.3, metalness:0.2 });
+    const matPneu = new THREE.MeshStandardMaterial({ color: 0x0e0f11, roughness:0.9 });
+
+    const corpo = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.62, 3.5), matCorpo);
+    corpo.position.y = 0.5;
+    grupo.add(corpo);
+
+    const cabine = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 1.7), matVidro);
+    cabine.position.set(0, 0.93, -0.25);
+    grupo.add(cabine);
+
+    const rodaGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.3, 14);
+    const posicoes = [[-0.82,0.32,1.15],[0.82,0.32,1.15],[-0.82,0.32,-1.15],[0.82,0.32,-1.15]];
+    posicoes.forEach(p=>{
+      const roda = new THREE.Mesh(rodaGeo, matPneu);
+      roda.rotation.z = Math.PI/2;
+      roda.position.set(p[0], p[1], p[2]);
+      grupo.add(roda);
+    });
+
+    return grupo;
+  }
+
+  for(let i=0; i<NUM_NIVEIS; i++) construirNivel(i);
+
+  // ---------- Interação: seleção de vaga ----------
+  const raycaster = new THREE.Raycaster();
+  const mouseNdc = new THREE.Vector2();
+  let ponteiroMoveu = false;
+
+  canvasEl.addEventListener('pointerdown', ()=>{ ponteiroMoveu = false; });
+  canvasEl.addEventListener('pointermove', ()=>{ ponteiroMoveu = true; });
+
+  canvasEl.addEventListener('pointerup', (e)=>{
+    if(ponteiroMoveu) return; // foi um arraste, não um clique
+    const rect = canvasEl.getBoundingClientRect();
+    mouseNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouseNdc, activeCamera);
+
+    const overlays = niveisDados[nivelAtual].map(v => v.overlay);
+    const hits = raycaster.intersectObjects(overlays);
+    if(hits.length){
+      const spotId = hits[0].object.userData.spotId;
+      alternarVaga(spotId);
+    }
+  });
+
+  function alternarVaga(spotId){
+    const vaga = niveisDados[nivelAtual][spotId];
+    vaga.status = (vaga.status === 'livre') ? 'ocupada' : 'livre';
+    if(vaga.status === 'ocupada'){
+      vaga.minutosOcupada = 1 + Math.floor(Math.random()*118);
+    }
+    aplicarStatusVaga(vaga);
+    mostrarPainelVaga(vaga);
+    atualizarEstatisticas();
+  }
+
+  function aplicarStatusVaga(vaga){
+    if(vaga.status === 'ocupada'){
+      vaga.overlay.material.color.set(0xe0524a);
+      vaga.overlay.material.opacity = 0.5;
+      vaga.carro.visible = true;
+    } else {
+      vaga.overlay.material.color.set(0x36b37e);
+      vaga.overlay.material.opacity = 0.38;
+      vaga.carro.visible = false;
+    }
+  }
+
+  // ---------- Painel de detalhe ----------
+  const painelVagaEl = document.getElementById('painel-vaga');
+  const vagaCodigoEl = document.getElementById('vaga-codigo');
+  const vagaPillEl = document.getElementById('vaga-pill');
+  const vagaDetalheEl = document.getElementById('vaga-detalhe');
+
+  function mostrarPainelVaga(vaga){
+    vagaSelecionada = vaga;
+    vagaCodigoEl.textContent = vaga.code;
+    if(vaga.status === 'ocupada'){
+      vagaPillEl.textContent = 'Ocupada';
+      vagaPillEl.className = 'pill ocupada';
+      vagaDetalheEl.textContent = 'Veículo estacionado há ' + vaga.minutosOcupada + ' min.';
+    } else {
+      vagaPillEl.textContent = 'Livre';
+      vagaPillEl.className = 'pill livre';
+      vagaDetalheEl.textContent = 'Vaga disponível para uso imediato.';
+    }
+    painelVagaEl.classList.add('visivel');
+  }
+
+  // ---------- Estatísticas ----------
+  const numLivresEl = document.getElementById('num-livres');
+  const numOcupadasEl = document.getElementById('num-ocupadas');
+  const medidorFillEl = document.getElementById('medidor-fill');
+  const pctOcupacaoEl = document.getElementById('pct-ocupacao');
+  const totalVagasEl = document.getElementById('total-vagas');
+
+  let livresExibido = 0, ocupadasExibido = 0;
+
+  function animarNumero(el, de, para, chave){
+    const duracao = 420;
+    const inicio = performance.now();
+    function passo(t){
+      const p = Math.min(1, (t - inicio) / duracao);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const valor = Math.round(de + (para - de) * ease);
+      el.textContent = valor;
+      if(chave === 'livres') livresExibido = valor; else ocupadasExibido = valor;
+      if(p < 1) requestAnimationFrame(passo);
+    }
+    requestAnimationFrame(passo);
+  }
+
+  function atualizarEstatisticas(){
+    const dados = niveisDados[nivelAtual];
+    const ocupadas = dados.filter(v => v.status === 'ocupada').length;
+    const livres = dados.length - ocupadas;
+    const pct = Math.round((ocupadas / dados.length) * 100);
+
+    animarNumero(numLivresEl, livresExibido, livres, 'livres');
+    animarNumero(numOcupadasEl, ocupadasExibido, ocupadas, 'ocupadas');
+    medidorFillEl.style.width = pct + '%';
+    pctOcupacaoEl.textContent = pct + '% ocupado';
+    totalVagasEl.textContent = dados.length + ' vagas';
+  }
+
+  // ---------- Ações ----------
+  document.getElementById('btn-sortear').addEventListener('click', ()=>{
+    niveisDados[nivelAtual].forEach(vaga=>{
+      vaga.status = (Math.random() < 0.62) ? 'ocupada' : 'livre';
+      if(vaga.status === 'ocupada') vaga.minutosOcupada = 1 + Math.floor(Math.random()*118);
+      aplicarStatusVaga(vaga);
+    });
+    atualizarEstatisticas();
+    painelVagaEl.classList.remove('visivel');
+  });
+
+  document.getElementById('btn-liberar').addEventListener('click', ()=>{
+    niveisDados[nivelAtual].forEach(vaga=>{
+      vaga.status = 'livre';
+      aplicarStatusVaga(vaga);
+    });
+    atualizarEstatisticas();
+    painelVagaEl.classList.remove('visivel');
+  });
+
+  document.querySelectorAll('.modo-viz button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const modo = btn.dataset.modo;
+      if(modo === modoAtual) return;
+      document.querySelectorAll('.modo-viz button').forEach(b=>b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      modoAtual = modo;
+      alvo.set(0, 0, 0);
+      if(modo === '2d'){
+        activeCamera = cameraOrto;
+        zoomOrto = 1;
+        atualizarFrustumOrto();
+      } else {
+        activeCamera = camera;
+        raioAlvo = 34; thetaAlvo = Math.PI * 0.28; phiAlvo = Math.PI * 0.32;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-nivel]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const novoNivel = parseInt(btn.dataset.nivel, 10);
+      if(novoNivel === nivelAtual) return;
+      document.querySelectorAll('.niveis button').forEach(b=>b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      niveisGrupos[nivelAtual].visible = false;
+      nivelAtual = novoNivel;
+      niveisGrupos[nivelAtual].visible = true;
+      livresExibido = 0; ocupadasExibido = 0;
+      atualizarEstatisticas();
+      painelVagaEl.classList.remove('visivel');
+    });
+  });
+
+  // ---------- Estado inicial: sorteia ocupação inicial ----------
+  niveisDados.forEach(dados=>{
+    dados.forEach(vaga=>{
+      vaga.status = (Math.random() < 0.55) ? 'ocupada' : 'livre';
+      if(vaga.status === 'ocupada') vaga.minutosOcupada = 1 + Math.floor(Math.random()*118);
+      aplicarStatusVaga(vaga);
+    });
+  });
+  atualizarEstatisticas();
+
+  // ---------- Animação de entrada da câmera ----------
+  raio = 52; raioAlvo = 34;
+  phi = 0.55; phiAlvo = Math.PI * 0.32;
+  theta = 0.9; thetaAlvo = Math.PI * 0.28;
+
+  // ---------- Loop de renderização ----------
+  function animar(){
+    requestAnimationFrame(animar);
+    raio += (raioAlvo - raio) * 0.08;
+    theta += (thetaAlvo - theta) * 0.08;
+    phi += (phiAlvo - phi) * 0.08;
+    atualizarCamera();
+    cameraOrto.position.set(alvo.x, 40, alvo.z);
+    cameraOrto.lookAt(alvo.x, 0, alvo.z);
+    renderer.render(scene, activeCamera);
+  }
+  animar();
+
+  // ---------- Redimensionamento ----------
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    atualizarFrustumOrto();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+})();
+</script>
+</body>
+</html>
