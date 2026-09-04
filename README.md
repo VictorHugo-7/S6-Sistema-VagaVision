@@ -1,4 +1,5 @@
 ## S6-Sistema-VagaVision
 
-> npm i <br/>
-> npx expo start --tunnel
+> Aplicativo Expo Go: https://expo.dev/go<br/>
+> Comando npm i <br/>
+> Comando npx expo start --tunnel
