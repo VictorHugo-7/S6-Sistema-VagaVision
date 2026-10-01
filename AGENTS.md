@@ -1,3 +1,5 @@
-# Expo HAS CHANGED
+# Flutter project
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+This is a Flutter app (migrated from React Native/Expo). Use the latest stable Flutter/Dart.
+Run `flutter analyze` and `flutter test` after changes. The 3D scene is drawn with `CustomPainter`
+and a custom projection (`lib/projecao.dart`), not a native 3D engine.
