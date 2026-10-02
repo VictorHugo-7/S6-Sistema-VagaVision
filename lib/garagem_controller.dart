@@ -57,19 +57,23 @@ class GaragemController extends ChangeNotifier {
   ];
   static const _phiMin = 0.14;
   static const _phiMax = 1.15;
-  static const _raioPadrao = 34.0;
-  static const _thetaPadrao = math.pi * 0.28;
+  // No 3D, o raio é um multiplicador da distância que enquadra o pátio na tela.
+  static const _raioPadrao = 1.0;
+  static const _raioMin = 0.4;
+  static const _raioMax = 1.35;
+  static const _tanMeioFov = 0.3839; // tan(21°): campo de visão vertical de 42°
+  static const _thetaPadrao = 0.2;
   static const _phiPadrao = math.pi * 0.32;
 
   final _rng = math.Random();
   final List<List<Vaga>> niveis = [];
 
-  Modo _modo = Modo.d3;
+  Modo _modo = Modo.d2;
   int _nivel = 0;
   Vaga? _selecionada;
 
   // câmera (começa afastada e "voa" até a posição padrão)
-  double _raio = 52, _raioAlvo = _raioPadrao;
+  double _raio = 1.45, _raioAlvo = _raioPadrao;
   double _theta = 0.9, _thetaAlvo = _thetaPadrao;
   double _phi = 0.55, _phiAlvo = _phiPadrao;
   double _alvoX = 0, _alvoZ = 0;
@@ -156,8 +160,8 @@ class GaragemController extends ChangeNotifier {
   // ---------- câmera ----------
 
   double _meiaAlturaOrto(double aspecto) {
-    final ajusteLargura = (ConfigPatio.larguraPatio / 2 + 1) / aspecto;
-    final ajusteAltura = ConfigPatio.profundidadePatio / 2 + 2;
+    final ajusteLargura = (ConfigPatio.quadroMeiaLargura + 0.8) / aspecto;
+    final ajusteAltura = ConfigPatio.quadroMeiaAltura + 0.8;
     return math.max(ajusteLargura, ajusteAltura) / _zoomOrto;
   }
 
@@ -172,10 +176,14 @@ class GaragemController extends ChangeNotifier {
       );
     }
     final alvo = V3(_alvoX, 0, _alvoZ);
+    // distância que enquadra o pátio: pela altura (vista inclinada) ou pela largura (telas estreitas)
+    final aspecto = tela.width / tela.height;
+    final base = math.min(70.0, math.max(30.0, (ConfigPatio.larguraPatio / 2 + 1.2) * 1.18 / (_tanMeioFov * aspecto)));
+    final raio = base * _raio;
     final olho = V3(
-      alvo.x + _raio * math.sin(_phi) * math.sin(_theta),
-      alvo.y + _raio * math.cos(_phi),
-      alvo.z + _raio * math.sin(_phi) * math.cos(_theta),
+      alvo.x + raio * math.sin(_phi) * math.sin(_theta),
+      alvo.y + raio * math.cos(_phi),
+      alvo.z + raio * math.sin(_phi) * math.cos(_theta),
     );
     return Camara.perspectiva(olho: olho, alvo: alvo, tela: tela);
   }
@@ -195,15 +203,16 @@ class GaragemController extends ChangeNotifier {
       _phiAlvo = (_phiAlvo - dy * 0.006).clamp(_phiMin, _phiMax);
     } else {
       final porPixel = 2 * _meiaAlturaOrto(tela.width / tela.height) / tela.height;
-      _alvoX -= dx * porPixel;
-      _alvoZ -= dy * porPixel;
+      // limita o arrasto para o mapa nunca sair totalmente da tela
+      _alvoX = (_alvoX - dx * porPixel).clamp(-ConfigPatio.quadroMeiaLargura, ConfigPatio.quadroMeiaLargura);
+      _alvoZ = (_alvoZ - dy * porPixel).clamp(-ConfigPatio.quadroMeiaAltura, ConfigPatio.quadroMeiaAltura);
     }
   }
 
   /// [fator] > 1 aproxima, < 1 afasta (pinça ou roda do mouse).
   void zoom(double fator) {
     if (_modo == Modo.d3) {
-      _raioAlvo = (_raioAlvo / fator).clamp(14.0, 60.0);
+      _raioAlvo = (_raioAlvo / fator).clamp(_raioMin, _raioMax);
     } else {
       _zoomOrto = (_zoomOrto * fator).clamp(0.5, 3.2);
     }
