@@ -17,9 +17,10 @@ BoxDecoration _caixaPainel(double raio) => BoxDecoration(
     );
 
 class Hud extends StatelessWidget {
-  const Hud({super.key, required this.controller});
+  const Hud({super.key, required this.controller, this.onSair});
 
   final GaragemController controller;
+  final VoidCallback? onSair;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +77,12 @@ class Hud extends StatelessWidget {
               _BotaoToggle(ativo: controller.nivel == 0, texto: 'Nível 1', onTap: () => controller.setNivel(0)),
               _BotaoToggle(ativo: controller.nivel == 1, texto: 'Nível 2', onTap: () => controller.setNivel(1)),
             ]),
+            if (onSair != null) ...[
+              const SizedBox(height: 8),
+              _GrupoBotoes(children: [
+                _BotaoToggle(ativo: false, texto: 'Sair', onTap: () => onSair!()),
+              ]),
+            ],
           ],
         ),
       ],
