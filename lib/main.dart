@@ -1,21 +1,33 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_state.dart';
+import 'auth_service.dart';
 import 'garagem_controller.dart';
 import 'login_page.dart';
 import 'shell.dart';
 import 'theme.dart';
 
-void main() {
+/// `true` pula o login Microsoft e o Firebase (só para ver o visual).
+/// Ligue na linha de comando: flutter run --dart-define=SEM_LOGIN=true
+const modoSemLogin = bool.fromEnvironment('SEM_LOGIN');
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   // As fontes estão embutidas em google_fonts/; nunca buscar na internet.
   GoogleFonts.config.allowRuntimeFetching = false;
+  if (!modoSemLogin) await AuthService.iniciar();
   runApp(const VagaVisionApp());
 }
 
 class VagaVisionApp extends StatefulWidget {
-  const VagaVisionApp({super.key});
+  const VagaVisionApp({super.key, this.semLogin = modoSemLogin});
+
+  final bool semLogin;
 
   @override
   State<VagaVisionApp> createState() => _VagaVisionAppState();
@@ -24,11 +36,22 @@ class VagaVisionApp extends StatefulWidget {
 class _VagaVisionAppState extends State<VagaVisionApp> {
   final _app = AppState();
   final _garagem = GaragemController();
+  StreamSubscription<User?>? _sessao;
   bool _splash = true;
 
   @override
   void initState() {
     super.initState();
+    // A sessão Microsoft fica salva: quem já entrou abre direto no app.
+    if (!widget.semLogin) {
+      _sessao = AuthService.usuario.listen((user) {
+        if (user == null) {
+          _app.sair();
+        } else {
+          _app.entrar(AuthService.nomeDe(user));
+        }
+      });
+    }
     Future.delayed(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _splash = false);
     });
@@ -36,6 +59,7 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
 
   @override
   void dispose() {
+    _sessao?.cancel();
     _app.dispose();
     _garagem.dispose();
     super.dispose();
@@ -62,7 +86,7 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
                 duration: const Duration(milliseconds: 300),
                 child: _app.logado
                     ? Shell(key: const ValueKey('shell'), app: _app, garagem: _garagem)
-                    : LoginPage(key: const ValueKey('login'), app: _app),
+                    : LoginPage(key: const ValueKey('login'), app: _app, semLogin: widget.semLogin),
               ),
             ),
     );
