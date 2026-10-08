@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'auth_service.dart';
 import 'logo.dart';
 import 'theme.dart';
-import 'widgets.dart';
 
 class SplashPage extends StatelessWidget {
   const SplashPage({super.key});
@@ -24,67 +24,42 @@ class SplashPage extends StatelessWidget {
   }
 }
 
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key, required this.app});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key, required this.app, this.semLogin = false});
 
   final AppState app;
 
-  // Login simulado: a integração real com a conta Microsoft/Mauá (Entra ID) ainda não existe.
-  void _entrarMicrosoft() => app.entrar('Usuário Mauá');
+  /// `true` entra sem conta Microsoft (só para ver o visual / capturas de tela).
+  final bool semLogin;
 
-  void _entrarComSenha(BuildContext context) {
-    final usuario = TextEditingController();
-    final senha = TextEditingController();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Cores.folha,
-      constraints: const BoxConstraints(maxWidth: 520),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (ctx) => SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Usuário e senha Mauá', style: mono(18, peso: FontWeight.w700), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            _campo(usuario, 'Usuário ou e-mail', false),
-            const SizedBox(height: 12),
-            _campo(senha, 'Senha', true),
-            const SizedBox(height: 16),
-            BotaoAzul(
-              texto: 'Entrar',
-              altura: 50,
-              onTap: () {
-                if (usuario.text.trim().isEmpty || senha.text.isEmpty) return;
-                Navigator.pop(ctx);
-                app.entrar(usuario.text.trim());
-              },
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(() {
-      usuario.dispose();
-      senha.dispose();
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  bool _carregando = false;
+  String? _erro;
+
+  /// Login com a conta Microsoft @maua.br (o mesmo usuário e senha da Mauá).
+  /// Com sucesso, a sessão do Firebase avisa o main.dart, que troca para o app.
+  Future<void> _entrarMicrosoft() async {
+    if (widget.semLogin) {
+      widget.app.entrar('Usuário Mauá');
+      return;
+    }
+    setState(() {
+      _carregando = true;
+      _erro = null;
     });
-  }
-
-  Widget _campo(TextEditingController c, String dica, bool oculto) {
-    return TextField(
-      controller: c,
-      obscureText: oculto,
-      style: mono(14),
-      decoration: InputDecoration(
-        hintText: dica,
-        hintStyle: mono(14, cor: Cores.cinzaTexto),
-        filled: true,
-        fillColor: Cores.campo,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-      ),
-    );
+    try {
+      await AuthService.entrarComMicrosoft();
+    } on ErroLogin catch (e) {
+      if (mounted) setState(() => _erro = e.mensagem);
+    } catch (e) {
+      if (mounted) setState(() => _erro = 'Erro inesperado ao entrar: $e');
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
   }
 
   Widget _acoes(BuildContext context) {
@@ -97,7 +72,7 @@ class LoginPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: _entrarMicrosoft,
+            onTap: _carregando ? null : _entrarMicrosoft,
             child: Container(
               height: 60,
               padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -105,18 +80,28 @@ class LoginPage extends StatelessWidget {
                 children: [
                   Text('Entrar', style: mono(16, peso: FontWeight.w700, cor: Colors.white)),
                   const Spacer(),
-                  Image.asset('assets/ms_logo.png', width: 30, height: 30, semanticLabel: 'Microsoft'),
+                  _carregando
+                      ? const SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(strokeWidth: 2.6, color: Colors.white),
+                        )
+                      : Image.asset('assets/ms_logo.png', width: 30, height: 30, semanticLabel: 'Microsoft'),
                 ],
               ),
             ),
           ),
         ),
+        if (_erro != null) ...[
+          const SizedBox(height: 14),
+          Text(_erro!, textAlign: TextAlign.center, style: mono(12, cor: const Color(0xFFC0392B))),
+        ],
         const SizedBox(height: 20),
         SizedBox(
           height: 48,
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
-            onTap: () => _entrarComSenha(context),
+            onTap: _carregando ? null : _entrarMicrosoft,
             child: Center(
               child: Text(
                 'Entrar com usuário e senha Mauá',

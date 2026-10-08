@@ -45,3 +45,4 @@ coverage/
 
 # capturas geradas por test/screens_test.dart
 test/goldens/
+flutter_*.log

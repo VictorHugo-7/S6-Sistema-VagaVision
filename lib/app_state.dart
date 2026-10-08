@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'auth_service.dart';
+
 enum NivelAlerta { simples, medio, severo }
 
 class ConfigAlerta {
@@ -36,11 +38,15 @@ class AppState extends ChangeNotifier {
   String get blocoPrincipal => blocos.keys.first;
 
   void entrar(String nome) {
+    if (_usuario == nome) return;
     _usuario = nome;
     notifyListeners();
   }
 
+  /// Encerra a sessão aqui e na conta Microsoft (Firebase).
   void sair() {
+    AuthService.sair();
+    if (_usuario == null) return;
     _usuario = null;
     notifyListeners();
   }
