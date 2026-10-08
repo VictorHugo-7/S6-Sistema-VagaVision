@@ -12,6 +12,12 @@ Aplicativo Flutter (multiplataforma) de monitoramento de vagas da Garagem Centra
 Ao abrir o app aparece a tela de login (conta Microsoft/Mauá); depois de entrar, abre o sistema VagaVision (garagem 3D). O botão "Sair" volta ao login.
 Antes de rodar, configure o Firebase seguindo o `FIREBASE_SETUP.md` (`flutterfire configure`).
 
+### Ver o visual sem login
+
+```bash
+flutter run -d chrome --dart-define=SEM_LOGIN=true
+```
+
 ### Primeira execução
 
 ```bash
@@ -21,20 +27,23 @@ flutter run                  # escolha o dispositivo; ou: -d chrome | -d windows
 
 ### Uso
 
-- Arrastar: gira a câmera (3D) ou move a vista (2D)
-- Pinça / roda do mouse: zoom
-- Toque numa vaga: alterna livre/ocupada
-- Botões 3D/2D e Nível 1/2 no topo; "Sortear ocupação" e "Liberar todas as vagas" no painel
+- Tela **Mapa**: arrastar gira a câmera 3D; pinça / roda do mouse dá zoom; toque numa vaga alterna livre/ocupada (simulação)
+- Cartão "Vagas Disponíveis Bloco U": mostra livres/total e a barra amarela
+- Seletores 3D/2D e Nível 1/2 abaixo do topo; botões "Sortear ocupação" e "Liberar todas as vagas" embaixo
+- Botão **Alertas** abre a tela "Ativar alertas" (interruptor por bloco); **Voltar** retorna ao mapa
+- Ícone de sair (ao lado de "Alertas") volta ao login
 
 ### Estrutura
 
 - `lib/main.dart` – entrada do app e portão de autenticação (login → garagem)
 - `lib/login_page.dart` – tela de login
 - `lib/auth_service.dart` – login Microsoft (Firebase Auth) e cadastro no Firestore
-- `lib/garagem_pagina.dart` – tela do sistema, exibida após o login
+- `lib/garagem_pagina.dart` – tela Mapa, exibida após o login
+- `lib/alertas_pagina.dart` / `lib/alertas_controller.dart` – tela "Ativar alertas"
+- `lib/quadro_tela.dart` – moldura comum do Figma (fundo azul, quadro, folha inferior)
 - `lib/firebase_options.dart` – gerado pelo `flutterfire configure`
 - `lib/garagem_controller.dart` – estado das vagas e da câmera
-- `lib/garagem_scene.dart` – desenho da cena 3D/2D e gestos
+- `lib/garagem_scene.dart` – desenho da cena 3D e gestos
 - `lib/projecao.dart` – câmera/projeção 3D (sem dependências nativas)
-- `lib/hud.dart` – interface sobreposta
-- `lib/theme.dart` – cores e configuração do pátio
+- `lib/hud.dart` – botões e cartão sobrepostos à cena
+- `lib/theme.dart` – paleta do Figma e medidas do pátio

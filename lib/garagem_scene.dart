@@ -1,16 +1,15 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'garagem_controller.dart';
 import 'projecao.dart';
 import 'theme.dart';
 
-/// Cena da garagem: desenha o pátio em 3D (perspectiva) ou 2D (vista de cima)
-/// e trata os gestos (arrastar, pinça/scroll para zoom, toque para selecionar).
+/// Cena da garagem: desenha o pátio em 3D (perspectiva) com o visual do Figma
+/// e trata os gestos (arrastar, pinça/scroll para zoom, toque para alternar a vaga).
 class GaragemScene extends StatefulWidget {
   const GaragemScene({super.key, required this.controller});
 
@@ -49,6 +48,7 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
       _tamanho = Size(c.maxWidth, c.maxHeight);
+      widget.controller.ajustarTela(_tamanho);
       return Listener(
         onPointerSignal: (e) {
           if (e is PointerScrollEvent) widget.controller.zoom(math.exp(-e.scrollDelta.dy * 0.0015));
@@ -85,12 +85,8 @@ class _CenaPainter extends CustomPainter {
 
   final GaragemController c;
 
-  static const _corPiso = Color(0xFF2B2E34);
-  static const _corVia = Color(0xFF33373E);
-  static const _corLinha = Color(0xFFDEDFD8);
-  static const _corColuna = Color(0xFF45494F);
-  static const _corVidro = Color(0xFF1B1E22);
-  static const _corPneu = Color(0xFF0E0F11);
+  static const _corCabine = Cores.fundo;
+  static const _corPneu = Color(0xFF14284A);
 
   // Faces visíveis de uma caixa unitária (a face de baixo nunca aparece).
   static const _faces = [
@@ -105,26 +101,17 @@ class _CenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Cores.fundoCena);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Cores.fundo);
     final cam = c.camara(size);
 
-    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio, ConfigPatio.profundidadePatio, 0, _corPiso);
-    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio - 1, ConfigPatio.aisle - 0.6, 0.005, _corVia);
-
+    _moldura(canvas, cam);
     for (final v in c.vagas) {
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.18, ConfigPatio.spotD - 0.3, 0.01, _corLinha, contorno: true);
-      final cor = v.ocupada ? Cores.ocupada.withValues(alpha: 0.5) : Cores.livre.withValues(alpha: 0.38);
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.5, ConfigPatio.spotD - 0.9, 0.02, cor);
+      _vaga(canvas, cam, v);
     }
+    _divisorias(canvas, cam);
 
-    // objetos 3D ordenados do mais longe para o mais perto (algoritmo do pintor)
+    // carros ordenados do mais longe para o mais perto (algoritmo do pintor)
     final itens = <(double, VoidCallback)>[];
-    for (final cx in [-1.0, 1.0]) {
-      for (final cz in [-1.0, 1.0]) {
-        final centro = V3(cx * (ConfigPatio.larguraPatio / 2 - 1), 2.6, cz * (ConfigPatio.profundidadePatio / 2 - 1));
-        itens.add((cam.distancia(centro), () => _caixa(canvas, cam, centro, const V3(0.9, 5.2, 0.9), 0, _corColuna)));
-      }
-    }
     for (final v in c.vagas.where((v) => v.ocupada)) {
       itens.add((cam.distancia(V3(v.x, 0.5, v.z)), () => _carro(canvas, cam, v)));
     }
@@ -132,23 +119,62 @@ class _CenaPainter extends CustomPainter {
     for (final item in itens) {
       item.$2();
     }
+  }
 
-    for (final v in c.vagas) {
-      _rotulo(canvas, cam, v);
+  /// Moldura branca arredondada do pátio (a "caixa" do Figma), no chão.
+  void _moldura(Canvas canvas, Camara cam) {
+    final pts = cam.poligono(_arredondado(0, 0, ConfigPatio.larguraPatio, ConfigPatio.profundidadePatio, 2.4, 0.005));
+    if (pts == null) return;
+    canvas.drawPath(
+      Path()..addPolygon(pts, true),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round
+        ..color = Cores.moldura,
+    );
+  }
+
+  /// Retângulo da vaga: verde se livre, vermelho se ocupada.
+  void _vaga(Canvas canvas, Camara cam, Vaga v) {
+    final pts = cam.poligono(_arredondado(v.x, v.z, ConfigPatio.vagaW, ConfigPatio.vagaD, 0.35, 0.02));
+    if (pts == null) return;
+    canvas.drawPath(Path()..addPolygon(pts, true), Paint()..color = v.ocupada ? Cores.ocupada : Cores.livre);
+  }
+
+  /// Faixas cinza-claras entre as vagas vizinhas.
+  void _divisorias(Canvas canvas, Camara cam) {
+    final zFileira = ConfigPatio.aisle / 2 + ConfigPatio.vagaD / 2;
+    for (final z in [-zFileira, zFileira]) {
+      for (var i = 0; i < ConfigPatio.cols - 1; i++) {
+        final x = (i - (ConfigPatio.cols - 1) / 2 + 0.5) * ConfigPatio.passo;
+        _retanguloPlano(canvas, cam, x, z, 0.17, ConfigPatio.vagaD, 0.02, Cores.divisor);
+      }
     }
   }
 
-  void _retanguloPlano(
-    Canvas canvas,
-    Camara cam,
-    double cx,
-    double cz,
-    double w,
-    double d,
-    double y,
-    Color cor, {
-    bool contorno = false,
-  }) {
+  /// Pontos de um retângulo com cantos arredondados no plano do chão (y fixo).
+  List<V3> _arredondado(double cx, double cz, double w, double d, double r, double y) {
+    const passos = 5;
+    final hw = w / 2 - r;
+    final hd = d / 2 - r;
+    final cantos = [
+      (1.0, -1.0, -math.pi / 2),
+      (1.0, 1.0, 0.0),
+      (-1.0, 1.0, math.pi / 2),
+      (-1.0, -1.0, math.pi),
+    ];
+    final pts = <V3>[];
+    for (final (sx, sz, a0) in cantos) {
+      for (var i = 0; i <= passos; i++) {
+        final a = a0 + (math.pi / 2) * i / passos;
+        pts.add(V3(cx + sx * hw + r * math.cos(a), y, cz + sz * hd + r * math.sin(a)));
+      }
+    }
+    return pts;
+  }
+
+  void _retanguloPlano(Canvas canvas, Camara cam, double cx, double cz, double w, double d, double y, Color cor) {
     final pts = cam.poligono([
       V3(cx - w / 2, y, cz - d / 2),
       V3(cx + w / 2, y, cz - d / 2),
@@ -156,13 +182,7 @@ class _CenaPainter extends CustomPainter {
       V3(cx - w / 2, y, cz + d / 2),
     ]);
     if (pts == null) return;
-    final paint = Paint()..color = cor;
-    if (contorno) {
-      paint
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-    }
-    canvas.drawPath(Path()..addPolygon(pts, true), paint);
+    canvas.drawPath(Path()..addPolygon(pts, true), Paint()..color = cor);
   }
 
   V3 _girar(V3 l, double a) {
@@ -188,7 +208,17 @@ class _CenaPainter extends CustomPainter {
         green: (cor.g * k).clamp(0.0, 1.0),
         blue: (cor.b * k).clamp(0.0, 1.0),
       );
-      canvas.drawPath(Path()..addPolygon(pts, true), Paint()..color = sombreada);
+      final caminho = Path()..addPolygon(pts, true);
+      canvas.drawPath(caminho, Paint()..color = sombreada);
+      // contorno fino para o carro não se misturar com a vaga vermelha
+      canvas.drawPath(
+        caminho,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..strokeJoin = StrokeJoin.round
+          ..color = const Color(0x55000000),
+      );
     }
   }
 
@@ -200,34 +230,17 @@ class _CenaPainter extends CustomPainter {
     final partes = <(double, V3, V3, Color)>[];
     for (final sx in [-1.0, 1.0]) {
       for (final sz in [-1.0, 1.0]) {
-        final centro = mundo(V3(sx * 0.82, 0.32, sz * 1.15));
-        partes.add((cam.distancia(centro), centro, const V3(0.3, 0.64, 0.64), _corPneu));
+        final centro = mundo(V3(sx * 0.78, 0.3, sz * 0.95));
+        partes.add((cam.distancia(centro), centro, const V3(0.28, 0.6, 0.6), _corPneu));
       }
     }
-    final corpo = mundo(const V3(0, 0.5, 0));
-    partes.add((cam.distancia(corpo), corpo, const V3(1.7, 0.62, 3.5), v.corCarro));
+    final corpo = mundo(const V3(0, 0.45, 0));
+    partes.add((cam.distancia(corpo), corpo, const V3(1.6, 0.56, 2.9), Cores.ocupada));
     partes.sort((a, b) => b.$1.compareTo(a.$1));
     for (final p in partes) {
       _caixa(canvas, cam, p.$2, p.$3, v.giro, p.$4);
     }
-    _caixa(canvas, cam, mundo(const V3(0, 0.93, -0.25)), const V3(1.4, 0.5, 1.7), v.giro, _corVidro);
-  }
-
-  void _rotulo(Canvas canvas, Camara cam, Vaga v) {
-    final p = cam.ponto(V3(v.x, 1.55, v.z));
-    if (p == null) return;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: v.code,
-        style: GoogleFonts.oswald(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: const Color.fromRGBO(243, 240, 232, 0.9),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
+    _caixa(canvas, cam, mundo(const V3(0, 0.86, -0.2)), const V3(1.3, 0.46, 1.45), v.giro, _corCabine);
   }
 
   @override

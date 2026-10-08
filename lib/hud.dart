@@ -1,194 +1,87 @@
-﻿import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
 
 import 'garagem_controller.dart';
+import 'quadro_tela.dart';
 import 'theme.dart';
 
-TextStyle _oswald(double size, {FontWeight peso = FontWeight.w500, Color cor = Cores.texto}) =>
-    GoogleFonts.oswald(fontSize: size, fontWeight: peso, color: cor);
-
-TextStyle _inter(double size, {FontWeight peso = FontWeight.w400, Color cor = Cores.textoFraco, double? altura}) =>
-    GoogleFonts.inter(fontSize: size, fontWeight: peso, color: cor, height: altura);
-
-BoxDecoration _caixaPainel(double raio) => BoxDecoration(
-      color: Cores.painel,
-      borderRadius: BorderRadius.circular(raio),
-      border: Border.all(color: Cores.borda),
-    );
-
+/// Interface sobreposta à cena do Mapa: botão "Alertas" + sair e cartão "Vagas Disponíveis Bloco U"
+/// no topo, seletores 3D/2D e Nível 1/2 logo abaixo, e os botões de ocupação embaixo.
 class Hud extends StatelessWidget {
-  const Hud({super.key, required this.controller, this.onSair});
+  const Hud({super.key, required this.controller, required this.onAlertas, this.onSair});
 
   final GaragemController controller;
+  final VoidCallback onAlertas;
   final VoidCallback? onSair;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
-      builder: (context, _) {
-        final stats = controller.stats;
-        final vaga = controller.selecionada;
-        return SafeArea(
-          child: Stack(
-            children: [
-              Positioned(top: 12, left: 18, right: 18, child: _topbar()),
-              Positioned(left: 18, top: 112, child: _painelStatus(stats)),
-              Positioned(left: 18, bottom: 24, child: _legenda()),
-              if (vaga != null) Positioned(right: 18, bottom: 24, child: _painelVaga(vaga)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _topbar() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 170),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text.rich(TextSpan(
-                style: _oswald(18, peso: FontWeight.w700),
-                children: [
-                  const TextSpan(text: 'GARAGEM '),
-                  TextSpan(text: 'CENTRAL', style: _oswald(18, peso: FontWeight.w700, cor: Cores.amarelo)),
-                ],
-              )),
-              const SizedBox(height: 3),
-              Text('Monitoramento de vagas · simulação em tempo real', style: _inter(10.5, altura: 14 / 10.5)),
-            ],
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _GrupoBotoes(children: [
-              _BotaoToggle(ativo: controller.modo == Modo.d3, texto: '3D', onTap: () => controller.setModo(Modo.d3)),
-              _BotaoToggle(ativo: controller.modo == Modo.d2, texto: '2D', onTap: () => controller.setModo(Modo.d2)),
-            ]),
-            const SizedBox(height: 8),
-            _GrupoBotoes(children: [
-              _BotaoToggle(ativo: controller.nivel == 0, texto: 'Nível 1', onTap: () => controller.setNivel(0)),
-              _BotaoToggle(ativo: controller.nivel == 1, texto: 'Nível 2', onTap: () => controller.setNivel(1)),
-            ]),
-            if (onSair != null) ...[
-              const SizedBox(height: 8),
-              _GrupoBotoes(children: [
-                _BotaoToggle(ativo: false, texto: 'Sair', onTap: () => onSair!()),
-              ]),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _painelStatus(Estatisticas s) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: _caixaPainel(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      builder: (context, _) => Stack(
         children: [
-          Row(
-            children: [
-              Expanded(child: _numero('${s.livres}', 'vagas livres', Cores.livre)),
-              const SizedBox(width: 10),
-              Expanded(child: _numero('${s.ocupadas}', 'ocupadas', Cores.ocupada)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: Container(
-              height: 8,
-              color: Cores.livreDim,
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: s.pctOcupado / 100,
-                child: Container(color: Cores.ocupada),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PilulaAcoes(onAlertas: onAlertas, onSair: onSair),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          heightFactor: 1,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 202),
+                            child: _CartaoVagas(controller: controller),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _Segmentos(
+                        opcoes: const ['3D', '2D'],
+                        selecionado: controller.modo == Modo.d3 ? 0 : 1,
+                        onSelecionar: (i) => controller.setModo(i == 0 ? Modo.d3 : Modo.d2),
+                      ),
+                      _Segmentos(
+                        opcoes: const ['Nível 1', 'Nível 2'],
+                        selecionado: controller.nivel,
+                        onSelecionar: controller.setNivel,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('${s.pctOcupado}% ocupado', style: _inter(10.5)),
-              Text('${s.total} vagas', style: _inter(10.5)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          _Botao(texto: 'Sortear ocupação', principal: true, onTap: controller.sortear),
-          _Botao(texto: 'Liberar todas as vagas', onTap: controller.liberar),
-        ],
-      ),
-    );
-  }
-
-  Widget _numero(String valor, String rotulo, Color cor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(valor, style: _oswald(26, peso: FontWeight.w600, cor: cor)),
-        const SizedBox(height: 2),
-        Text(rotulo, style: _inter(10.5)),
-      ],
-    );
-  }
-
-  Widget _legenda() {
-    Widget item(Color cor, String texto) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(2)),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _BotaoAcao(texto: 'Sortear ocupação', principal: true, onTap: controller.sortear),
+                  _BotaoAcao(texto: 'Liberar todas as vagas', onTap: controller.liberar),
+                ],
+              ),
             ),
-            const SizedBox(width: 6),
-            Text(texto, style: _inter(10.5)),
-          ],
-        );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 14),
-      decoration: _caixaPainel(10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [item(Cores.livre, 'Livre'), const SizedBox(width: 14), item(Cores.ocupada, 'Ocupada')],
-      ),
-    );
-  }
-
-  Widget _painelVaga(Vaga v) {
-    final cor = v.ocupada ? Cores.ocupada : Cores.livre;
-    return Container(
-      width: 180,
-      padding: const EdgeInsets.all(15),
-      decoration: _caixaPainel(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(v.code, style: _oswald(20, peso: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 9),
-            decoration: BoxDecoration(color: cor.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(20)),
-            child: Text(v.ocupada ? 'Ocupada' : 'Livre', style: _inter(11.5, peso: FontWeight.w600, cor: cor)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            v.ocupada ? 'Veículo estacionado há ${v.minutosOcupada} min.' : 'Vaga disponível para uso imediato.',
-            style: _inter(11.5, altura: 16 / 11.5),
           ),
         ],
       ),
@@ -196,47 +89,53 @@ class Hud extends StatelessWidget {
   }
 }
 
-class _GrupoBotoes extends StatelessWidget {
-  const _GrupoBotoes({required this.children});
+/// Grupo de opções em pílula branca; a opção escolhida fica azul (mesmo azul do botão Alertas).
+class _Segmentos extends StatelessWidget {
+  const _Segmentos({required this.opcoes, required this.selecionado, required this.onSelecionar});
 
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: _caixaPainel(10),
-      child: Row(mainAxisSize: MainAxisSize.min, children: children),
-    );
-  }
-}
-
-class _BotaoToggle extends StatelessWidget {
-  const _BotaoToggle({required this.ativo, required this.texto, required this.onTap});
-
-  final bool ativo;
-  final String texto;
-  final VoidCallback onTap;
+  final List<String> opcoes;
+  final int selecionado;
+  final ValueChanged<int> onSelecionar;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: ativo ? Cores.amarelo : Colors.transparent,
-      borderRadius: BorderRadius.circular(7),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(7),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 13),
-          child: Text(texto, style: _oswald(12.5, cor: ativo ? Cores.textoSobreAmarelo : Cores.textoFraco)),
+      color: Cores.branco,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Cores.preto, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < opcoes.length; i++)
+              Material(
+                color: i == selecionado ? Cores.azulBotao : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => onSelecionar(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Text(
+                      opcoes[i],
+                      style: textoMono(12, peso: FontWeight.w700, cor: i == selecionado ? Colors.white : Cores.preto),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _Botao extends StatelessWidget {
-  const _Botao({required this.texto, required this.onTap, this.principal = false});
+/// Botão de ação: azul (principal) ou branco com contorno preto.
+class _BotaoAcao extends StatelessWidget {
+  const _BotaoAcao({required this.texto, required this.onTap, this.principal = false});
 
   final String texto;
   final VoidCallback onTap;
@@ -244,26 +143,199 @@ class _Botao extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Material(
-        color: principal ? Cores.amarelo : const Color.fromRGBO(255, 255, 255, 0.04),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: principal ? BorderSide.none : const BorderSide(color: Cores.borda),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            child: Text(
-              texto,
-              style: _inter(12, peso: FontWeight.w600, cor: principal ? Cores.textoSobreAmarelo : Cores.texto),
-            ),
+    final forma = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: principal ? BorderSide.none : const BorderSide(color: Cores.preto, width: 1.5),
+    );
+    return Material(
+      color: principal ? Cores.azulBotao : Cores.branco,
+      shape: forma,
+      child: InkWell(
+        customBorder: forma,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Text(
+            texto,
+            style: textoMono(12, peso: FontWeight.w700, cor: principal ? Colors.white : Cores.preto),
           ),
         ),
       ),
     );
   }
+}
+
+class _PilulaAcoes extends StatelessWidget {
+  const _PilulaAcoes({required this.onAlertas, this.onSair});
+
+  final VoidCallback onAlertas;
+  final VoidCallback? onSair;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Cores.branco,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Cores.preto, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: Cores.azulBotao,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onAlertas,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Text('Alertas', style: textoMono(12, peso: FontWeight.w700, cor: Colors.white)),
+                ),
+              ),
+            ),
+            if (onSair != null) ...[
+              const SizedBox(width: 2),
+              Tooltip(
+                message: 'Sair',
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onSair,
+                  child: const Padding(
+                    padding: EdgeInsets.all(5),
+                    child: _IconeSair(tamanho: 18),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartaoVagas extends StatelessWidget {
+  const _CartaoVagas({required this.controller});
+
+  final GaragemController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final s = controller.stats;
+        final fracao = s.total == 0 ? 0.0 : s.livres / s.total;
+        return Container(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          decoration: BoxDecoration(
+            color: Cores.branco,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Cores.preto, width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text('Vagas Disponíveis\nBloco U', style: textoMono(16, altura: 1.3)),
+              ),
+              const SizedBox(height: 8),
+              _Barra(fracao: fracao, texto: '${s.livres}/${s.total}'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Barra amarela: preenchida na proporção de vagas livres, com "livres/total" no meio.
+class _Barra extends StatelessWidget {
+  const _Barra({required this.fracao, required this.texto});
+
+  final double fracao;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 29,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Cores.branco,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Cores.preto, width: 1.2),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: fracao.clamp(0.0, 1.0),
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: Cores.barra, borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          Center(child: Text(texto, style: textoMono(14))),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ícone de sair do Figma: caixa aberta com uma seta para a esquerda.
+class _IconeSair extends StatelessWidget {
+  const _IconeSair({required this.tamanho});
+
+  final double tamanho;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(size: Size(tamanho, tamanho), painter: _SairPainter());
+  }
+}
+
+class _SairPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 26);
+    canvas.translate(0, 1);
+    final traco = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = Cores.fundo;
+    final caixa = Path()
+      ..moveTo(21, 9)
+      ..lineTo(21, 5)
+      ..quadraticBezierTo(21, 3, 19, 3)
+      ..lineTo(5, 3)
+      ..quadraticBezierTo(3, 3, 3, 5)
+      ..lineTo(3, 19)
+      ..quadraticBezierTo(3, 21, 5, 21)
+      ..lineTo(19, 21)
+      ..quadraticBezierTo(21, 21, 21, 19)
+      ..lineTo(21, 15);
+    final seta = Path()
+      ..moveTo(25, 12)
+      ..lineTo(9, 12)
+      ..moveTo(13, 8)
+      ..lineTo(9, 12)
+      ..lineTo(13, 16);
+    canvas.drawPath(caixa, traco);
+    canvas.drawPath(seta, traco);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }

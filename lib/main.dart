@@ -7,9 +7,13 @@ import 'garagem_pagina.dart';
 import 'login_page.dart';
 import 'theme.dart';
 
+/// `true` abre direto no mapa, sem login nem Firebase (só para ver o visual).
+/// Também dá para ligar na linha de comando: flutter run --dart-define=SEM_LOGIN=true
+const semLogin = bool.fromEnvironment('SEM_LOGIN', defaultValue: false);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthService.iniciar();
+  if (!semLogin) await AuthService.iniciar();
   runApp(const GaragemApp());
 }
 
@@ -23,11 +27,11 @@ class GaragemApp extends StatelessWidget {
       title: 'VagaVision',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Cores.asfalto,
-        colorScheme: ColorScheme.fromSeed(seedColor: Cores.amarelo, brightness: Brightness.dark),
+        useMaterial3: true,
+        scaffoldBackgroundColor: Cores.fundo,
+        colorScheme: ColorScheme.fromSeed(seedColor: Cores.azulBotao),
       ),
-      home: const PortaoAuth(),
+      home: semLogin ? const GaragemPagina() : const PortaoAuth(),
     );
   }
 }

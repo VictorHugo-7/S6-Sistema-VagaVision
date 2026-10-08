@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -15,13 +15,11 @@ class Vaga {
     required this.x,
     required this.z,
     required this.giro,
-    required this.corCarro,
   });
 
   final int id;
   final String code;
   final double x, z, giro;
-  final Color corCarro;
   bool ocupada = false;
   int minutosOcupada = 0;
 }
@@ -40,26 +38,22 @@ class GaragemController extends ChangeNotifier {
     for (var n = 0; n < ConfigPatio.numNiveis; n++) {
       niveis.add(_construirNivel());
     }
-    for (final nivel in niveis) {
-      for (final vaga in nivel) {
-        _definirOcupacao(vaga, _rng.nextDouble() < 0.55);
+    for (var n = 0; n < niveis.length; n++) {
+      for (final vaga in niveis[n]) {
+        _definirOcupacao(vaga, _padraoInicial[(vaga.id + n * 3) % _padraoInicial.length]);
       }
     }
   }
 
-  static const _coresCarro = [
-    Color(0xFFCFD3D6),
-    Color(0xFF35415C),
-    Color(0xFFEEF0EF),
-    Color(0xFF4B4F57),
-    Color(0xFF6B7159),
-    Color(0xFF8A6F4E),
-  ];
+  // Ocupação inicial igual à do Figma (true = ocupada): fileira A, depois fileira B. Dá 5/10 livres.
+  // O nível 2 usa o mesmo padrão deslocado, também com 5/10 livres.
+  static const _padraoInicial = [false, true, false, true, true, false, false, true, true, false];
+
   static const _phiMin = 0.14;
   static const _phiMax = 1.15;
-  static const _raioPadrao = 34.0;
-  static const _thetaPadrao = math.pi * 0.28;
-  static const _phiPadrao = math.pi * 0.32;
+  static const _fovGraus = 42.0;
+  static const _thetaPadrao = 0.0;
+  static const _phiPadrao = math.pi * 0.2; // câmera mais de cima, parecida com o Figma
 
   final _rng = math.Random();
   final List<List<Vaga>> niveis = [];
@@ -69,7 +63,10 @@ class GaragemController extends ChangeNotifier {
   Vaga? _selecionada;
 
   // câmera (começa afastada e "voa" até a posição padrão)
-  double _raio = 52, _raioAlvo = _raioPadrao;
+  double _raioPadrao = 34; // distância que enquadra o pátio inteiro (calculada em ajustarTela)
+  bool _telaAjustada = false;
+  Size _ultimaTela = Size.zero;
+  double _raio = 52, _raioAlvo = 34;
   double _theta = 0.9, _thetaAlvo = _thetaPadrao;
   double _phi = 0.55, _phiAlvo = _phiPadrao;
   double _alvoX = 0, _alvoZ = 0;
@@ -90,18 +87,17 @@ class GaragemController extends ChangeNotifier {
   List<Vaga> _construirNivel() {
     final vagas = <Vaga>[];
     const fileiras = [
-      ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
-      ('B', ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2, 0.0),
+      ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.vagaD / 2), math.pi),
+      ('B', ConfigPatio.aisle / 2 + ConfigPatio.vagaD / 2, 0.0),
     ];
     for (final (chave, z, giro) in fileiras) {
       for (var c = 0; c < ConfigPatio.cols; c++) {
         vagas.add(Vaga(
           id: vagas.length,
           code: '$chave${c + 1}',
-          x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.spotW,
+          x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.passo,
           z: z,
           giro: giro,
-          corCarro: _coresCarro[_rng.nextInt(_coresCarro.length)],
         ));
       }
     }
@@ -177,7 +173,25 @@ class GaragemController extends ChangeNotifier {
       alvo.y + _raio * math.cos(_phi),
       alvo.z + _raio * math.sin(_phi) * math.cos(_theta),
     );
-    return Camara.perspectiva(olho: olho, alvo: alvo, tela: tela);
+    return Camara.perspectiva(olho: olho, alvo: alvo, tela: tela, fovGraus: _fovGraus);
+  }
+
+  /// Enquadra o pátio inteiro na tela; chamado quando o tamanho da cena muda.
+  void ajustarTela(Size tela) {
+    if (tela.width <= 0 || tela.height <= 0 || tela == _ultimaTela) return;
+    _ultimaTela = tela;
+    final aspecto = tela.width / tela.height;
+    final tanMeio = math.tan(_fovGraus * math.pi / 360);
+    final meiaLargura = ConfigPatio.larguraPatio / 2 + 1.5;
+    final meiaProf = ConfigPatio.profundidadePatio / 2 + 1.5;
+    final porLargura = meiaLargura / (tanMeio * aspecto) + meiaProf * math.sin(_phiPadrao);
+    final porAltura = meiaProf * math.cos(_phiPadrao) / tanMeio + meiaProf * math.sin(_phiPadrao);
+    _raioPadrao = math.max(porLargura, porAltura).clamp(20.0, 120.0);
+    _raioAlvo = _raioPadrao;
+    if (!_telaAjustada) {
+      _telaAjustada = true;
+      _raio = _raioPadrao * 1.4; // começa afastada e "voa" até a posição padrão
+    }
   }
 
   /// Suaviza a câmera em direção ao alvo; [dt] em segundos.
@@ -203,7 +217,7 @@ class GaragemController extends ChangeNotifier {
   /// [fator] > 1 aproxima, < 1 afasta (pinça ou roda do mouse).
   void zoom(double fator) {
     if (_modo == Modo.d3) {
-      _raioAlvo = (_raioAlvo / fator).clamp(14.0, 60.0);
+      _raioAlvo = (_raioAlvo / fator).clamp(_raioPadrao * 0.45, _raioPadrao * 1.5);
     } else {
       _zoomOrto = (_zoomOrto * fator).clamp(0.5, 3.2);
     }
@@ -221,7 +235,7 @@ class GaragemController extends ChangeNotifier {
     final hx = raio.origem.x + raio.direcao.x * t;
     final hz = raio.origem.z + raio.direcao.z * t;
     for (final v in vagas) {
-      if ((hx - v.x).abs() <= (ConfigPatio.spotW - 0.5) / 2 && (hz - v.z).abs() <= (ConfigPatio.spotD - 0.9) / 2) {
+      if ((hx - v.x).abs() <= ConfigPatio.vagaW / 2 && (hz - v.z).abs() <= ConfigPatio.vagaD / 2) {
         _definirOcupacao(v, !v.ocupada);
         _selecionada = v;
         notifyListeners();
