@@ -15,7 +15,7 @@ Antes de rodar, configure o Firebase seguindo o `FIREBASE_SETUP.md` (`flutterfir
 ### Ver o visual sem login
 
 ```bash
-flutter run -d chrome --dart-define=SEM_LOGIN=true
+flutter run -d chrome 
 ```
 
 ### Primeira execução
