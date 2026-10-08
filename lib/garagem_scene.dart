@@ -1,16 +1,15 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'garagem_controller.dart';
 import 'projecao.dart';
 import 'theme.dart';
 
-/// Cena da garagem: desenha o pátio em 3D (perspectiva) ou 2D (vista de cima)
-/// e trata os gestos (arrastar, pinça/scroll para zoom, toque para selecionar).
+/// Cena do bloco: vista 2D no estilo do Figma ou vista 3D com carros.
+/// Trata os gestos (arrastar, pinça/scroll para zoom, toque para selecionar).
 class GaragemScene extends StatefulWidget {
   const GaragemScene({super.key, required this.controller});
 
@@ -63,9 +62,11 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
             widget.controller.arrastar(d.focalPointDelta.dx, d.focalPointDelta.dy, _tamanho);
           },
           onTapUp: (d) => widget.controller.toque(d.localPosition, _tamanho),
-          child: CustomPaint(
-            size: Size.infinite,
-            painter: _CenaPainter(widget.controller, _frame),
+          child: ClipRect(
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _CenaPainter(widget.controller, _frame),
+            ),
           ),
         ),
       );
@@ -85,10 +86,7 @@ class _CenaPainter extends CustomPainter {
 
   final GaragemController c;
 
-  static const _corPiso = Color(0xFF2B2E34);
-  static const _corVia = Color(0xFF33373E);
   static const _corLinha = Color(0xFFDEDFD8);
-  static const _corColuna = Color(0xFF45494F);
   static const _corVidro = Color(0xFF1B1E22);
   static const _corPneu = Color(0xFF0E0F11);
 
@@ -105,15 +103,50 @@ class _CenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Cores.fundoCena);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Cores.azul);
     final cam = c.camara(size);
+    if (c.modo == Modo.d2) {
+      _pintar2d(canvas, cam);
+    } else {
+      _pintar3d(canvas, cam);
+    }
+  }
 
-    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio, ConfigPatio.profundidadePatio, 0, _corPiso);
-    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio - 1, ConfigPatio.aisle - 0.6, 0.005, _corVia);
+  // ---------- 2D (Figma): vagas lisas verde/vermelho, divisórias brancas e moldura ----------
+
+  void _pintar2d(Canvas canvas, Camara cam) {
+    final a = cam.ponto(const V3(-ConfigPatio.quadroMeiaLargura, 0, -ConfigPatio.quadroMeiaAltura));
+    final b = cam.ponto(const V3(ConfigPatio.quadroMeiaLargura, 0, ConfigPatio.quadroMeiaAltura));
+    if (a != null && b != null) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromPoints(a, b), const Radius.circular(12)),
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
+    }
 
     for (final v in c.vagas) {
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.18, ConfigPatio.spotD - 0.3, 0.01, _corLinha, contorno: true);
-      final cor = v.ocupada ? Cores.ocupada.withValues(alpha: 0.5) : Cores.livre.withValues(alpha: 0.38);
+      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.vagaLarg2d, ConfigPatio.vagaProf2d, 0.02,
+          v.ocupada ? Cores.ocupada : Cores.livre);
+      if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
+        _retanguloPlano(
+            canvas, cam, v.x + ConfigPatio.spotW / 2, v.z, 0.12, ConfigPatio.vagaProf2d, 0.03, Colors.white);
+      }
+    }
+  }
+
+  // ---------- 3D: pátio com carros nas vagas ocupadas ----------
+
+  void _pintar3d(Canvas canvas, Camara cam) {
+    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio, ConfigPatio.profundidadePatio, 0, Cores.piso3d);
+    _retanguloPlano(canvas, cam, 0, 0, ConfigPatio.larguraPatio - 1, ConfigPatio.aisle - 0.6, 0.005, Cores.via3d);
+
+    for (final v in c.vagas) {
+      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.18, ConfigPatio.spotD - 0.3, 0.01, _corLinha,
+          contorno: true);
+      final cor = v.ocupada ? Cores.ocupada.withValues(alpha: 0.55) : Cores.livre.withValues(alpha: 0.5);
       _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.5, ConfigPatio.spotD - 0.9, 0.02, cor);
     }
 
@@ -121,8 +154,9 @@ class _CenaPainter extends CustomPainter {
     final itens = <(double, VoidCallback)>[];
     for (final cx in [-1.0, 1.0]) {
       for (final cz in [-1.0, 1.0]) {
-        final centro = V3(cx * (ConfigPatio.larguraPatio / 2 - 1), 2.6, cz * (ConfigPatio.profundidadePatio / 2 - 1));
-        itens.add((cam.distancia(centro), () => _caixa(canvas, cam, centro, const V3(0.9, 5.2, 0.9), 0, _corColuna)));
+        final centro = V3(
+            cx * (ConfigPatio.larguraPatio / 2 - 1), 2.6, cz * (ConfigPatio.profundidadePatio / 2 - 1));
+        itens.add((cam.distancia(centro), () => _caixa(canvas, cam, centro, const V3(0.9, 5.2, 0.9), 0, Cores.coluna3d)));
       }
     }
     for (final v in c.vagas.where((v) => v.ocupada)) {
@@ -217,14 +251,7 @@ class _CenaPainter extends CustomPainter {
     final p = cam.ponto(V3(v.x, 1.55, v.z));
     if (p == null) return;
     final tp = TextPainter(
-      text: TextSpan(
-        text: v.code,
-        style: GoogleFonts.oswald(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: const Color.fromRGBO(243, 240, 232, 0.9),
-        ),
-      ),
+      text: TextSpan(text: v.code, style: mono(11, cor: const Color.fromRGBO(255, 255, 255, 0.9))),
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));

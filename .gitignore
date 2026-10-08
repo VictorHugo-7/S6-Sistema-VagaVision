@@ -42,3 +42,6 @@ coverage/
 .DS_Store
 .env*.local
 *.pem
+
+# capturas geradas por test/screens_test.dart
+test/goldens/
