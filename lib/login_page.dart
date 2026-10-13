@@ -5,7 +5,7 @@ import 'auth_service.dart';
 import 'logo.dart';
 
 /// Tela de login (design do Figma): fundo azul-marinho, logo, e folha inferior
-/// com o botão "Entrar" (conta Microsoft / Mauá).
+/// com o botão "Entrar" (conta Google).
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
       _erro = null;
     });
     try {
-      await AuthService.entrarComMicrosoft();
+      await AuthService.entrarComGoogle();
       // Sucesso: o PortaoAuth (main.dart) troca esta tela pela garagem 3D sozinho.
     } on ErroLogin catch (e) {
       if (mounted) setState(() => _erro = e.mensagem);
@@ -89,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                       const SizedBox(height: 32),
                       Text(
-                        'Entrar com usuário e senha Mauá',
+                        'Entrar com sua conta Google',
                         textAlign: TextAlign.center,
                         style: _mono(12, FontWeight.w400, _cinza),
                       ),
@@ -126,7 +126,11 @@ class _LoginPageState extends State<LoginPage> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
                       )
-                    : const LogoMicrosoft(tamanho: 20),
+                    : Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: const LogoGoogle(tamanho: 16),
+                      ),
               ],
             ),
           ),

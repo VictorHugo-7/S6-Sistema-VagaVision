@@ -7,15 +7,24 @@ Aplicativo Flutter (multiplataforma) de monitoramento de vagas da Garagem Centra
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (canal `stable`, versão mais recente)
 - Android Studio (Android), Xcode (iOS/macOS, só no Mac) e/ou Visual Studio com "Desktop development with C++" (Windows)
 
-### Login com Microsoft
+### Login com Google
 
-Ao abrir o app aparece a tela de login (conta Microsoft/Mauá); depois de entrar, abre o sistema VagaVision (garagem 3D). O botão "Sair" volta ao login.
+Ao abrir o app aparece a tela de login (conta Google); depois de entrar, abre o sistema VagaVision (garagem 3D). O botão "Sair" volta ao login.
 Antes de rodar, configure o Firebase seguindo o `FIREBASE_SETUP.md` (`flutterfire configure`).
+
+### Celular (Android)
+
+O app é feito para celular em pé (retrato). Passo a passo completo, inclusive o SHA-1 do login Google e como gerar o APK, em `FIREBASE_SETUP.md` (seção 5).
+
+```bash
+flutter devices
+flutter run -d ID-DO-CELULAR
+```
 
 ### Ver o visual sem login
 
 ```bash
-flutter run -d chrome 
+flutter run -d chrome --dart-define=SEM_LOGIN=true
 ```
 
 ### Primeira execução
@@ -37,7 +46,7 @@ flutter run                  # escolha o dispositivo; ou: -d chrome | -d windows
 
 - `lib/main.dart` – entrada do app e portão de autenticação (login → garagem)
 - `lib/login_page.dart` – tela de login
-- `lib/auth_service.dart` – login Microsoft (Firebase Auth) e cadastro no Firestore
+- `lib/auth_service.dart` – login Google (Firebase Auth) e cadastro no Firestore
 - `lib/garagem_pagina.dart` – tela Mapa, exibida após o login
 - `lib/alertas_pagina.dart` / `lib/alertas_controller.dart` – tela "Ativar alertas"
 - `lib/quadro_tela.dart` – moldura comum do Figma (fundo azul, quadro, folha inferior)

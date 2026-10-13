@@ -13,6 +13,8 @@ const semLogin = bool.fromEnvironment('SEM_LOGIN', defaultValue: false);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // O design do Figma é em retrato (celular em pé).
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
   if (!semLogin) await AuthService.iniciar();
   runApp(const GaragemApp());
 }
@@ -22,7 +24,14 @@ class GaragemApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    // Barra de status transparente com ícones claros (fundo azul); barra de navegação branca como a folha de baixo.
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ));
     return MaterialApp(
       title: 'VagaVision',
       debugShowCheckedModeBanner: false,

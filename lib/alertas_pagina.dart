@@ -115,13 +115,17 @@ class _Interruptor extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            width: largura,
-            height: 30,
-            decoration: BoxDecoration(
-              color: ativo ? Cores.ativo : Cores.cinza,
-              borderRadius: BorderRadius.circular(10),
+          // o Padding aumenta só a área de toque (40 px de altura) sem mudar o desenho
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: largura,
+              height: 30,
+              decoration: BoxDecoration(
+                color: ativo ? Cores.ativo : Cores.cinza,
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
         ),

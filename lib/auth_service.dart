@@ -15,14 +15,14 @@ class ErroLogin implements Exception {
   String toString() => mensagem;
 }
 
-/// Login com conta Microsoft (Firebase Authentication) e cadastro do usuário no
+/// Login com conta Google (Firebase Authentication) e cadastro do usuário no
 /// banco (Cloud Firestore, coleção `usuarios`).
 class AuthService {
   AuthService._();
 
-  /// Para aceitar SOMENTE contas do Mauá, coloque aqui o "Directory (tenant) ID"
-  /// do Microsoft Entra ID da instituição. Vazio = qualquer conta Microsoft.
-  static const tenantMaua = '';
+  /// Para aceitar SOMENTE e-mails de um domínio (ex.: 'maua.br'), coloque aqui.
+  /// Vazio = qualquer conta Google. Contas fora do domínio são deslogadas.
+  static const dominioPermitido = '';
 
   static bool _pronto = false;
 
@@ -42,18 +42,18 @@ class AuthService {
   static Stream<User?> get usuario =>
       _pronto ? FirebaseAuth.instance.authStateChanges() : Stream<User?>.value(null);
 
-  static Future<void> entrarComMicrosoft() async {
+  static Future<void> entrarComGoogle() async {
     if (!_pronto) {
       throw ErroLogin('Firebase ainda não configurado. Rode "flutterfire configure" (veja FIREBASE_SETUP.md).');
     }
     if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux)) {
-      throw ErroLogin('Login Microsoft não funciona no Windows/Linux desktop. Use Chrome/Edge (web), Android, iOS ou macOS.');
+      throw ErroLogin('Login Google não funciona no Windows/Linux desktop. Use Chrome/Edge (web), Android, iOS ou macOS.');
     }
 
-    final provider = MicrosoftAuthProvider()
+    final provider = GoogleAuthProvider()
       ..setCustomParameters({
         'prompt': 'select_account',
-        if (tenantMaua.isNotEmpty) 'tenant': tenantMaua,
+        if (dominioPermitido.isNotEmpty) 'hd': dominioPermitido,
       });
 
     try {
@@ -61,7 +61,14 @@ class AuthService {
           ? await FirebaseAuth.instance.signInWithPopup(provider)
           : await FirebaseAuth.instance.signInWithProvider(provider);
       final user = cred.user;
-      if (user != null) await _salvarUsuario(user);
+      if (user != null) {
+        if (dominioPermitido.isNotEmpty &&
+            !(user.email ?? '').toLowerCase().endsWith('@$dominioPermitido')) {
+          await FirebaseAuth.instance.signOut();
+          throw ErroLogin('Use uma conta @$dominioPermitido para entrar.');
+        }
+        await _salvarUsuario(user);
+      }
     } on FirebaseAuthException catch (e) {
       final msg = _traduzir(e);
       if (msg != null) throw ErroLogin(msg);
@@ -81,7 +88,7 @@ class AuthService {
         'nome': user.displayName,
         'email': user.email,
         'foto': user.photoURL,
-        'provedor': 'microsoft.com',
+        'provedor': 'google.com',
         'ultimoLogin': FieldValue.serverTimestamp(),
         if (!existe) 'criadoEm': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -104,7 +111,7 @@ class AuthService {
       case 'network-request-failed':
         return 'Sem conexão. Verifique a internet e tente de novo.';
       case 'operation-not-allowed':
-        return 'Login Microsoft não está ativado no Firebase (Authentication > Sign-in method).';
+        return 'Login Google não está ativado no Firebase (Authentication > Sign-in method).';
       case 'unauthorized-domain':
         return 'Este endereço não está autorizado no Firebase (Authentication > Settings > Authorized domains).';
       case 'account-exists-with-different-credential':

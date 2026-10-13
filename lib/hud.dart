@@ -204,7 +204,7 @@ class _PilulaAcoes extends StatelessWidget {
                   customBorder: const CircleBorder(),
                   onTap: onSair,
                   child: const Padding(
-                    padding: EdgeInsets.all(5),
+                    padding: EdgeInsets.all(8),
                     child: _IconeSair(tamanho: 18),
                   ),
                 ),
