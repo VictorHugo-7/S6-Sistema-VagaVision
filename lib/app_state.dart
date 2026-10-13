@@ -28,6 +28,11 @@ class ConfigAlerta {
 
 /// Sessão do usuário e configuração de alertas por bloco (em memória).
 class AppState extends ChangeNotifier {
+  /// [aoSair] encerra a sessão no serviço de login (Firebase). Sem ele (modo sem login),
+  /// "sair" só limpa o usuário local.
+  AppState({this.aoSair});
+
+  final Future<void> Function()? aoSair;
   String? _usuario;
   final blocos = <String, ConfigAlerta>{'Bloco U': ConfigAlerta()};
 
@@ -35,14 +40,23 @@ class AppState extends ChangeNotifier {
   bool get logado => _usuario != null;
   String get blocoPrincipal => blocos.keys.first;
 
-  void entrar(String nome) {
+  /// Define (ou limpa, com `null`) o usuário da sessão. Usado pelo login e pelo
+  /// listener do Firebase.
+  void definirUsuario(String? nome) {
+    if (_usuario == nome) return;
     _usuario = nome;
     notifyListeners();
   }
 
+  void entrar(String nome) => definirUsuario(nome);
+
   void sair() {
-    _usuario = null;
-    notifyListeners();
+    final f = aoSair;
+    if (f != null) {
+      f(); // o Firebase avisa a mudança pelo stream (definirUsuario(null))
+    } else {
+      definirUsuario(null);
+    }
   }
 
   void alternarAlerta(String bloco) {

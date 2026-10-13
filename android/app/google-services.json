@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "753202558730",
+    "project_id": "vagavision-13295",
+    "storage_bucket": "vagavision-13295.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753202558730:android:8723ca0856a3ece966ecf3",
+        "android_client_info": {
+          "package_name": "br.maua.garagem_central"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8KLJTdJvEHPjFBLB9pMvY3D1kRAVkVEE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

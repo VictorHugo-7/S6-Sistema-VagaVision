@@ -42,7 +42,7 @@ void main() {
         await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/${entrada.key}_$nome.png'));
       }
 
-      await tester.pumpWidget(const VagaVisionApp());
+      await tester.pumpWidget(const VagaVisionApp(semFirebase: true));
       await tester.pump(const Duration(milliseconds: 1700));
       await captura('1_login');
 

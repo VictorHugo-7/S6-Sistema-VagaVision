@@ -34,17 +34,17 @@ TextStyle mono(double tamanho, {FontWeight peso = FontWeight.w500, Color cor = C
 
 class ConfigPatio {
   static const cols = 5;
-  static const spotW = 2.6;
-  static const spotD = 4.4;
-  static const aisle = 12.0;
+  static const spotW = 3.0;
+  static const spotD = 5.4;
+  static const aisle = 5.0;
   static const numNiveis = 2;
 
   static const larguraPatio = cols * spotW + 4;
   static const profundidadePatio = aisle + 2 * spotD + 4;
 
   // vista 2D (estilo do Figma): vagas mais estreitas, divisórias e moldura
-  static const vagaLarg2d = spotW * 0.67;
+  static const vagaLarg2d = spotW * 0.7;
   static const vagaProf2d = spotD - 0.6;
   static const quadroMeiaLargura = (cols / 2 - 0.165) * spotW + 0.55;
-  static const quadroMeiaAltura = aisle / 2 + spotD - 0.3 + 0.55;
+  static const quadroMeiaAltura = 2.5;
 }

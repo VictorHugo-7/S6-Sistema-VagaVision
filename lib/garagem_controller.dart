@@ -90,27 +90,29 @@ class GaragemController extends ChangeNotifier {
   }
 
   // ---------- construção ----------
+List<Vaga> _construirNivel() {
+  final vagas = <Vaga>[];
 
-  List<Vaga> _construirNivel() {
-    final vagas = <Vaga>[];
-    const fileiras = [
-      ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
-      ('B', ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2, 0.0),
-    ];
-    for (final (chave, z, giro) in fileiras) {
-      for (var c = 0; c < ConfigPatio.cols; c++) {
-        vagas.add(Vaga(
-          id: vagas.length,
-          code: '$chave${c + 1}',
-          x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.spotW,
-          z: z,
-          giro: giro,
-          corCarro: _coresCarro[_rng.nextInt(_coresCarro.length)],
-        ));
-      }
+  // Restaure a fórmula original para alinhar com o arquivo SVG
+  const fileiras = [
+    ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
+    ('B', ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2, 0.0),
+  ];
+
+  for (final (chave, z, giro) in fileiras) {
+    for (var c = 0; c < ConfigPatio.cols; c++) {
+      vagas.add(Vaga(
+        id: vagas.length,
+        code: '$chave${c + 1}',
+        x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.spotW,
+        z: z, // <--- Volta a usar a coordenada Z alinhada
+        giro: giro,
+        corCarro: _coresCarro[_rng.nextInt(_coresCarro.length)],
+      ));
     }
-    return vagas;
   }
+  return vagas;
+}
 
   void _definirOcupacao(Vaga vaga, bool ocupada) {
     vaga.ocupada = ocupada;
