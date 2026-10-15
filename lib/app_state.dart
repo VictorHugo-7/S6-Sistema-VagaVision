@@ -43,7 +43,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Encerra a sessão aqui e na conta Microsoft (Firebase).
+  /// Encerra a sessão aqui e no [AuthService].
   void sair() {
     AuthService.sair();
     if (_usuario == null) return;
