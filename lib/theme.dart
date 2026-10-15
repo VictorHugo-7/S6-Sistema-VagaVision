@@ -49,8 +49,8 @@ class ConfigPatio {
   static const profundidadePatio = aisle + 2 * spotD + 4;
 
   // vista 2D (estilo do Figma): vagas mais estreitas, divisórias e moldura
-  static const vagaLarg2d = spotW * 0.67;
+  static const vagaLarg2d = spotW * 0.7;
   static const vagaProf2d = spotD - 0.6;
   static const quadroMeiaLargura = (cols / 2 - 0.165) * spotW + 0.55;
-  static const quadroMeiaAltura = aisle / 2 + spotD - 0.3 + 0.55;
+  static const quadroMeiaAltura = 2.5;
 }
