@@ -29,7 +29,7 @@ class LoginPage extends StatefulWidget {
 
   final AppState app;
 
-  /// `true` entra sem conta Microsoft (só para ver o visual / capturas de tela).
+  /// `true` entra sem conferir a senha (só para ver o visual / capturas de tela).
   final bool semLogin;
 
   @override
@@ -37,14 +37,26 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final _usuario = TextEditingController();
+  final _senha = TextEditingController();
+  final _focoSenha = FocusNode();
+  bool _verSenha = false;
   bool _carregando = false;
   String? _erro;
 
-  /// Login com a conta Microsoft @maua.br (o mesmo usuário e senha da Mauá).
-  /// Com sucesso, a sessão do Firebase avisa o main.dart, que troca para o app.
-  Future<void> _entrarMicrosoft() async {
+  @override
+  void dispose() {
+    _usuario.dispose();
+    _senha.dispose();
+    _focoSenha.dispose();
+    super.dispose();
+  }
+
+  /// Login com usuário e senha. Hoje só o usuário padrão do [AuthService];
+  /// quando o banco de dados entrar, a conferência passa a ser feita lá.
+  Future<void> _entrar() async {
     if (widget.semLogin) {
-      widget.app.entrar('Usuário Mauá');
+      widget.app.entrar(AuthService.nomePadrao);
       return;
     }
     setState(() {
@@ -52,7 +64,8 @@ class _LoginPageState extends State<LoginPage> {
       _erro = null;
     });
     try {
-      await AuthService.entrarComMicrosoft();
+      final nome = await AuthService.entrar(_usuario.text, _senha.text);
+      if (mounted) widget.app.entrar(nome);
     } on ErroLogin catch (e) {
       if (mounted) setState(() => _erro = e.mensagem);
     } catch (e) {
@@ -62,33 +75,92 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Widget _campo({
+    required String rotulo,
+    required TextEditingController controlador,
+    FocusNode? foco,
+    bool senha = false,
+    TextInputAction acao = TextInputAction.next,
+    VoidCallback? onSubmit,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(rotulo, style: mono(13, peso: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+          decoration: BoxDecoration(
+            color: Cores.campo,
+            border: Border.all(color: Cores.texto),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controlador,
+                  focusNode: foco,
+                  enabled: !_carregando,
+                  obscureText: senha && !_verSenha,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: acao,
+                  style: mono(14),
+                  decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                  onSubmitted: (_) => onSubmit?.call(),
+                ),
+              ),
+              if (senha)
+                IconButton(
+                  onPressed: () => setState(() => _verSenha = !_verSenha),
+                  icon: Icon(_verSenha ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                  color: Cores.cinzaTexto,
+                  tooltip: _verSenha ? 'Esconder senha' : 'Mostrar senha',
+                  constraints: const BoxConstraints.tightFor(width: alvoToque, height: alvoToque),
+                  padding: EdgeInsets.zero,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _acoes(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _campo(rotulo: 'Usuário', controlador: _usuario, onSubmit: _focoSenha.requestFocus),
+        const SizedBox(height: 16),
+        _campo(
+          rotulo: 'Senha',
+          controlador: _senha,
+          foco: _focoSenha,
+          senha: true,
+          acao: TextInputAction.done,
+          onSubmit: _entrar,
+        ),
+        const SizedBox(height: 24),
         Material(
           color: Cores.azulBotao,
           borderRadius: BorderRadius.circular(14),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: _carregando ? null : _entrarMicrosoft,
+            onTap: _carregando ? null : _entrar,
             child: Container(
-              height: 60,
+              height: 56,
+              alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: Row(
-                children: [
-                  Text('Entrar', style: mono(16, peso: FontWeight.w700, cor: Colors.white)),
-                  const Spacer(),
-                  _carregando
-                      ? const SizedBox(
-                          width: 26,
-                          height: 26,
-                          child: CircularProgressIndicator(strokeWidth: 2.6, color: Colors.white),
-                        )
-                      : Image.asset('assets/ms_logo.png', width: 30, height: 30, semanticLabel: 'Microsoft'),
-                ],
-              ),
+              child: _carregando
+                  ? const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(strokeWidth: 2.6, color: Colors.white),
+                    )
+                  : Text('Entrar', style: mono(16, peso: FontWeight.w700, cor: Colors.white)),
             ),
           ),
         ),
@@ -96,21 +168,6 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 14),
           Text(_erro!, textAlign: TextAlign.center, style: mono(12, cor: const Color(0xFFC0392B))),
         ],
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 48,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: _carregando ? null : _entrarMicrosoft,
-            child: Center(
-              child: Text(
-                'Entrar com usuário e senha Mauá',
-                textAlign: TextAlign.center,
-                style: mono(14, cor: Cores.cinzaTexto),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }

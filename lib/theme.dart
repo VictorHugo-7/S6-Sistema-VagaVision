@@ -24,6 +24,10 @@ class Cores {
   static const piso3d = Color(0xFF2A4A78);
   static const via3d = Color(0xFF264470);
   static const coluna3d = Color(0xFF3C5A85);
+  static const chao3d = Color(0xFF1A3459);
+  static const calcada3d = Color(0xFF3A5B88);
+  static const canteiro3d = Color(0xFF2E5A55);
+  static const predio3d = Color(0xFF9DB1CC);
 }
 
 /// Área mínima de toque recomendada (Material / HIG).
@@ -33,10 +37,12 @@ TextStyle mono(double tamanho, {FontWeight peso = FontWeight.w500, Color cor = C
     GoogleFonts.ibmPlexMono(fontSize: tamanho, fontWeight: peso, color: cor);
 
 class ConfigPatio {
-  static const cols = 5;
-  static const spotW = 2.6;
-  static const spotD = 4.4;
-  static const aisle = 12.0;
+  // Trecho do estacionamento do Bloco U em escala real (medido na planta do campus):
+  // duas fileiras de costas uma para a outra, separadas por um canteiro central.
+  static const cols = 6;
+  static const spotW = 2.5;
+  static const spotD = 5.0;
+  static const aisle = 3.8; // largura do canteiro entre as fileiras
   static const numNiveis = 2;
 
   static const larguraPatio = cols * spotW + 4;
