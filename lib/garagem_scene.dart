@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'entorno_bloco_u.dart';
 import 'garagem_controller.dart';
 import 'projecao.dart';
 import 'theme.dart';
@@ -288,29 +289,10 @@ if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
 }
   }
 
-  // ---------- 3D: Pátio tridimensional ----------
+  // ---------- 3D: trecho do Bloco U com o entorno real e carros nas vagas ocupadas ----------
 
   void _pintar3d(Canvas canvas, Camara cam) {
-    _retanguloPlano(
-      canvas,
-      cam,
-      0,
-      0,
-      ConfigPatio.larguraPatio,
-      ConfigPatio.profundidadePatio,
-      0,
-      Cores.piso3d,
-    );
-    _retanguloPlano(
-      canvas,
-      cam,
-      0,
-      0,
-      ConfigPatio.larguraPatio - 1,
-      ConfigPatio.aisle - 0.6,
-      0.005,
-      Cores.via3d,
-    );
+    _pintarChaoEntorno(canvas, cam);
 
     for (final v in c.vagas) {
       _retanguloPlano(
@@ -339,26 +321,11 @@ if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
       );
     }
 
+    // objetos 3D ordenados do mais longe para o mais perto (algoritmo do pintor)
     final itens = <(double, VoidCallback)>[];
-    for (final cx in [-1.0, 1.0]) {
-      for (final cz in [-1.0, 1.0]) {
-        final centro = V3(
-          cx * (ConfigPatio.larguraPatio / 2 - 1),
-          2.6,
-          cz * (ConfigPatio.profundidadePatio / 2 - 1),
-        );
-        itens.add((
-          cam.distancia(centro),
-          () => _caixa(
-            canvas,
-            cam,
-            centro,
-            const V3(0.9, 5.2, 0.9),
-            0,
-            Cores.coluna3d,
-          ),
-        ));
-      }
+    for (final p in EntornoBlocoU.predios) {
+      final centro = p.centro, tam = p.tamanho;
+      itens.add((_distanciaCaixa(cam, centro, tam), () => _caixa(canvas, cam, centro, tam, 0, Cores.predio3d)));
     }
     for (final v in c.vagas.where((v) => v.ocupada)) {
       itens.add((
@@ -374,6 +341,38 @@ if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
     for (final v in c.vagas) {
       _rotulo(canvas, cam, v);
     }
+  }
+
+  /// Chão do entorno: vias, calçadas, canteiro e o resto das vagas (só contorno).
+  void _pintarChaoEntorno(Canvas canvas, Camara cam) {
+    void area(AreaPlanta a, Color cor) =>
+        _retanguloPlano(canvas, cam, a.cx, a.cz, a.largura, a.profundidade, 0, cor);
+
+    area(EntornoBlocoU.chao, Cores.chao3d);
+    for (final a in EntornoBlocoU.vias) {
+      area(a, Cores.via3d);
+    }
+    for (final a in EntornoBlocoU.calcadas) {
+      area(a, Cores.calcada3d);
+    }
+    for (final a in EntornoBlocoU.fileiras) {
+      area(a, Cores.piso3d);
+    }
+    area(EntornoBlocoU.canteiro, Cores.canteiro3d);
+    final divisoria = _corLinha.withValues(alpha: 0.35);
+    for (final a in EntornoBlocoU.divisoriasContexto) {
+      area(a, divisoria);
+    }
+  }
+
+  /// Distância da câmera ao ponto mais próximo da caixa (ordena prédios grandes melhor que o centro).
+  double _distanciaCaixa(Camara cam, V3 centro, V3 tam) {
+    final o = cam.olho;
+    return cam.distancia(V3(
+      o.x.clamp(centro.x - tam.x / 2, centro.x + tam.x / 2).toDouble(),
+      o.y.clamp(0, tam.y).toDouble(),
+      o.z.clamp(centro.z - tam.z / 2, centro.z + tam.z / 2).toDouble(),
+    ));
   }
 
   void _retanguloPlano(

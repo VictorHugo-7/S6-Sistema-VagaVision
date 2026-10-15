@@ -60,7 +60,7 @@ class GaragemController extends ChangeNotifier {
   // No 3D, o raio é um multiplicador da distância que enquadra o pátio na tela.
   static const _raioPadrao = 1.0;
   static const _raioMin = 0.4;
-  static const _raioMax = 1.35;
+  static const _raioMax = 3.5; // afasta o bastante para ver os prédios ao redor
   static const _tanMeioFov = 0.3839; // tan(21°): campo de visão vertical de 42°
   static const _thetaPadrao = 0.2;
   static const _phiPadrao = math.pi * 0.32;
