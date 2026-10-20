@@ -49,7 +49,7 @@ void main() {
             }
           }
 
-          await tester.pumpWidget(const VagaVisionApp(semLogin: true));
+          await tester.pumpWidget(const VagaVisionApp(semFirebase: true));
           await tester.pump(const Duration(milliseconds: 1700));
           await passo('login');
 
