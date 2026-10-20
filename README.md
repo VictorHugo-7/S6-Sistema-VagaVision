@@ -1,52 +1,51 @@
 ## S6-Sistema-VagaVision
 
-Aplicativo Flutter (multiplataforma) de monitoramento de vagas da Garagem Central.
+Aplicativo Flutter de monitoramento de vagas da Garagem Central (VagaVision): web, Android e desktop,
+com login Google (Firebase) e cena 3D do estacionamento do Bloco U em escala real, desenhada com `CustomPainter`.
 
 ### Requisitos
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (canal `stable`, versão mais recente)
 - Android Studio (Android), Xcode (iOS/macOS, só no Mac) e/ou Visual Studio com "Desktop development with C++" (Windows)
 
-### Login com Microsoft (@maua.br)
+### Duas interfaces, um projeto
 
-Ao abrir o app aparece a tela de login; "Entrar" abre a janela da Microsoft e só aceita contas
-institucionais **@maua.br** (o mesmo usuário e senha da Mauá). A sessão fica salva; o botão de sair volta ao login.
-A configuração do Firebase/Azure está no `FIREBASE_SETUP.md`.
-
-> O login Microsoft não funciona no Windows/Linux desktop; use `-d chrome`/`-d edge`, Android, iOS ou macOS.
+- **Celular (Android/iOS instalado):** versão mobile em retrato, com o mapa 3D dentro do quadro do Figma (código em `lib/mobile/`).
+- **Web, tablet e desktop:** versão responsiva com menu lateral (código em `lib/`, feita pelo Luan).
+- O login Google (`lib/auth_service.dart`) e o Firebase são compartilhados. A escolha é feita em `lib/main.dart`.
 
 ### Primeira execução
 
 ```bash
 flutter pub get
-flutter run -d chrome        # ou: -d edge | -d <id do celular>
+flutter run                  # escolha o dispositivo; ou: -d chrome | -d <id do celular>
 ```
 
-### Ver o visual sem login
+O login usa o Firebase: veja `FIREBASE_SETUP.md` (ativar o Google no Firebase Authentication, SHA-1 no Android).
+Para ver só o visual, sem login e sem Firebase (o botão "Entrar" faz um login simulado):
 
 ```bash
-flutter run -d windows --dart-define=SEM_LOGIN=true
+flutter run -d chrome --dart-define=SEM_LOGIN=true
 ```
 
 ### Uso
 
-- Tela **Mapa**: arrastar gira a câmera (3D) ou move a vista (2D); pinça / roda do mouse dá zoom; toque numa vaga alterna livre/ocupada (simulação)
-- Seletores 3D/2D e Nível 1/2; botões "Sortear ocupação" e "Liberar todas as vagas"
-- **Alertas**: liga/desliga o alerta por bloco e define os limites de vagas livres (simples, médio, severo)
+- **Mapa**: arrastar gira a câmera (3D) ou move a vista (2D); pinça / roda do mouse dá zoom; toque numa vaga alterna livre/ocupada
+- Botões 3D/2D e Nível 1/2; "Sortear ocupação" e "Liberar todas as vagas"
+- **Alertas**: lista de blocos com configuração de limites (simples, médio, severo)
+- A navegação se adapta: barra inferior (celular em pé), trilho (celular deitado) e menu lateral (web/tablet)
+- "Sair" volta ao login
 
 ### Estrutura
 
-- `lib/main.dart` – entrada do app; acompanha a sessão Microsoft e troca login ↔ app
-- `lib/auth_service.dart` – login Microsoft (Firebase Auth), restrição @maua.br e cadastro no Firestore
+- `lib/mobile/` – interface do celular (mapa 3D em quadro, alertas, login); entrada em `mobile/mobile_app.dart`
+- `lib/main.dart` – entrada do app (escolhe celular ou web), splash e troca login ↔ app (acompanha a sessão do Firebase)
+- `lib/auth_service.dart` – login Google (Firebase Auth) e cadastro do usuário no Firestore
 - `lib/firebase_options.dart` – gerado pelo `flutterfire configure`
 - `lib/app_state.dart` – sessão do usuário e configuração de alertas
 - `lib/login_page.dart` – splash e tela de login
-- `lib/shell.dart` – navegação entre as telas (celular, tablet e web)
-- `lib/mapa_page.dart` – tela Mapa
-- `lib/alertas_page.dart` – tela de alertas
-- `lib/garagem_controller.dart` – estado das vagas e da câmera
-- `lib/garagem_scene.dart` – desenho da cena 3D/2D e gestos
-- `lib/projecao.dart` – câmera/projeção 3D (sem dependências nativas)
-- `lib/widgets.dart`, `lib/logo.dart` – componentes reutilizáveis
-- `lib/theme.dart` – paleta do Figma e medidas do pátio
-- `firestore.rules` – regras do banco (só a própria conta @maua.br)
+- `lib/shell.dart` – navegação responsiva (Mapa / Alertas)
+- `lib/mapa_page.dart`, `lib/alertas_page.dart` – telas
+- `lib/garagem_controller.dart`, `lib/garagem_scene.dart`, `lib/projecao.dart` – vagas, cena 3D/2D e projeção
+- `lib/entorno_bloco_u.dart` – medidas do entorno do Bloco U (vias, calçadas, canteiro e prédios) em escala real
+- `lib/theme.dart`, `lib/widgets.dart`, `lib/logo.dart` – paleta, componentes e logos
