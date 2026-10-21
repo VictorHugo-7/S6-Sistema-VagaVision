@@ -1,7 +1,7 @@
 ## S6-Sistema-VagaVision
 
 Aplicativo Flutter de monitoramento de vagas da Garagem Central (VagaVision): web, Android e desktop,
-com login Google (Firebase) e cena 3D desenhada com `CustomPainter`.
+com login Google (Firebase) e cena 3D do estacionamento do Bloco U em escala real, desenhada com `CustomPainter`.
 
 ### Requisitos
 
@@ -47,4 +47,5 @@ flutter run -d chrome --dart-define=SEM_LOGIN=true
 - `lib/shell.dart` – navegação responsiva (Mapa / Alertas)
 - `lib/mapa_page.dart`, `lib/alertas_page.dart` – telas
 - `lib/garagem_controller.dart`, `lib/garagem_scene.dart`, `lib/projecao.dart` – vagas, cena 3D/2D e projeção
+- `lib/entorno_bloco_u.dart` – medidas do entorno do Bloco U (vias, calçadas, canteiro e prédios) em escala real
 - `lib/theme.dart`, `lib/widgets.dart`, `lib/logo.dart` – paleta, componentes e logos
