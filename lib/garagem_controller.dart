@@ -60,7 +60,7 @@ class GaragemController extends ChangeNotifier {
   // No 3D, o raio é um multiplicador da distância que enquadra o pátio na tela.
   static const _raioPadrao = 1.0;
   static const _raioMin = 0.4;
-  static const _raioMax = 1.35;
+  static const _raioMax = 3.5; // afasta o bastante para ver os prédios ao redor
   static const _tanMeioFov = 0.3839; // tan(21°): campo de visão vertical de 42°
   static const _thetaPadrao = 0.2;
   static const _phiPadrao = math.pi * 0.32;
@@ -90,29 +90,27 @@ class GaragemController extends ChangeNotifier {
   }
 
   // ---------- construção ----------
-List<Vaga> _construirNivel() {
-  final vagas = <Vaga>[];
 
-  // Restaure a fórmula original para alinhar com o arquivo SVG
-  const fileiras = [
-    ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
-    ('B', ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2, 0.0),
-  ];
-
-  for (final (chave, z, giro) in fileiras) {
-    for (var c = 0; c < ConfigPatio.cols; c++) {
-      vagas.add(Vaga(
-        id: vagas.length,
-        code: '$chave${c + 1}',
-        x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.spotW,
-        z: z, // <--- Volta a usar a coordenada Z alinhada
-        giro: giro,
-        corCarro: _coresCarro[_rng.nextInt(_coresCarro.length)],
-      ));
+  List<Vaga> _construirNivel() {
+    final vagas = <Vaga>[];
+    const fileiras = [
+      ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
+      ('B', ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2, 0.0),
+    ];
+    for (final (chave, z, giro) in fileiras) {
+      for (var c = 0; c < ConfigPatio.cols; c++) {
+        vagas.add(Vaga(
+          id: vagas.length,
+          code: '$chave${c + 1}',
+          x: (c - (ConfigPatio.cols - 1) / 2) * ConfigPatio.spotW,
+          z: z,
+          giro: giro,
+          corCarro: _coresCarro[_rng.nextInt(_coresCarro.length)],
+        ));
+      }
     }
+    return vagas;
   }
-  return vagas;
-}
 
   void _definirOcupacao(Vaga vaga, bool ocupada) {
     vaga.ocupada = ocupada;
