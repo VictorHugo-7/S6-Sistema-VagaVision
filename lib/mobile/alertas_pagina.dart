@@ -24,7 +24,7 @@ class AlertasPagina extends StatelessWidget {
           Container(
             height: 8,
             margin: const EdgeInsets.symmetric(horizontal: 15),
-            decoration: BoxDecoration(color: Cores.fundo, borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: context.paleta.destaque, borderRadius: BorderRadius.circular(4)),
           ),
           const SizedBox(height: 19),
           Expanded(

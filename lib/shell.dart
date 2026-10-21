@@ -2,30 +2,82 @@ import 'package:flutter/material.dart';
 
 import 'alertas_page.dart';
 import 'app_state.dart';
+import 'avisos_page.dart';
 import 'garagem_controller.dart';
 import 'logo.dart';
+import 'historico.dart';
 import 'mapa_page.dart';
+import 'meu_carro.dart';
+import 'painel_page.dart';
+import 'notificacoes.dart';
+import 'tema_controller.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 const _itens = [
   (Icons.location_on, 'Mapa'),
   (Icons.priority_high_rounded, 'Alertas'),
+  (Icons.notifications_rounded, 'Avisos'),
+  (Icons.insert_chart_rounded, 'Painel'),
 ];
+
+const _abaAvisos = 2;
+const _abaPainel = 3;
+
+/// Ícone da aba; na aba "Avisos" mostra a bolinha vermelha com a quantidade de não lidas.
+class _IconeAba extends StatelessWidget {
+  const _IconeAba({required this.indice, required this.notif, required this.cor, required this.tamanho});
+
+  final int indice;
+  final NotificacoesController notif;
+  final Color cor;
+  final double tamanho;
+
+  @override
+  Widget build(BuildContext context) {
+    final icone = Icon(_itens[indice].$1, size: tamanho, color: cor);
+    if (indice != _abaAvisos) return icone;
+    return ListenableBuilder(
+      listenable: notif,
+      builder: (context, _) {
+        final n = notif.naoLidas;
+        if (n == 0) return icone;
+        return Badge(
+          label: Text(n > 9 ? '9+' : '$n', style: mono(10, peso: FontWeight.w700, cor: Colors.white)),
+          backgroundColor: Cores.ocupada,
+          child: icone,
+        );
+      },
+    );
+  }
+}
 
 /// Estrutura do app logado. A navegação se adapta ao espaço:
 /// celular em pé → barra inferior; celular deitado → trilho compacto; web/tablet → menu lateral.
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.app, required this.garagem});
+  const Shell({
+    super.key,
+    required this.app,
+    required this.garagem,
+    required this.tema,
+    required this.notif,
+    required this.meuCarro,
+    required this.historico,
+  });
 
   final AppState app;
   final GaragemController garagem;
+  final TemaController tema;
+  final NotificacoesController notif;
+  final MeuCarro meuCarro;
+  final HistoricoOcupacao historico;
 
   @override
   State<Shell> createState() => _ShellState();
 }
 
 class _ShellState extends State<Shell> {
-  int _aba = 0; // 0 = Mapa, 1 = Alertas
+  int _aba = 0; // 0 = Mapa, 1 = Alertas, 2 = Avisos, 3 = Painel
   String? _blocoEditando;
 
   void _trocarAba(int i) => setState(() {
@@ -38,9 +90,15 @@ class _ShellState extends State<Shell> {
       return MapaPage(
         app: widget.app,
         garagem: widget.garagem,
+        meuCarro: widget.meuCarro,
+        tema: widget.tema,
         mostrarSair: !navegacaoLateral,
         reservaInferior: reservaInferior,
       );
+    }
+    if (_aba == _abaAvisos) return AvisosPage(notif: widget.notif, onVoltar: () => _trocarAba(0));
+    if (_aba == _abaPainel) {
+      return PainelPage(historico: widget.historico, garagem: widget.garagem, onVoltar: () => _trocarAba(0));
     }
     final bloco = _blocoEditando;
     if (bloco != null) {
@@ -66,13 +124,13 @@ class _ShellState extends State<Shell> {
 
       if (largo || paisagemCompacta) {
         return Scaffold(
-          backgroundColor: Cores.azul,
+          backgroundColor: context.paleta.fundo,
           body: Row(
             children: [
               if (largo)
-                _MenuLateral(app: widget.app, aba: _aba, onAba: _trocarAba)
+                _MenuLateral(app: widget.app, tema: widget.tema, notif: widget.notif, aba: _aba, onAba: _trocarAba)
               else
-                _Trilho(aba: _aba, onAba: _trocarAba, onSair: widget.app.sair),
+                _Trilho(tema: widget.tema, notif: widget.notif, aba: _aba, onAba: _trocarAba, onSair: widget.app.sair),
               Expanded(child: SafeArea(child: _conteudo(navegacaoLateral: true))),
             ],
           ),
@@ -82,7 +140,7 @@ class _ShellState extends State<Shell> {
       final inset = MediaQuery.paddingOf(context).bottom;
       final altura = 78 + inset;
       return Scaffold(
-        backgroundColor: Cores.azul,
+        backgroundColor: context.paleta.fundo,
         body: Stack(
           children: [
             Column(
@@ -93,7 +151,7 @@ class _ShellState extends State<Shell> {
                     child: _conteudo(navegacaoLateral: false, reservaInferior: 26),
                   ),
                 ),
-                _BarraInferior(altura: altura, aba: _aba, onAba: _trocarAba),
+                _BarraInferior(altura: altura, aba: _aba, notif: widget.notif, onAba: _trocarAba),
               ],
             ),
             // círculo do item atual: fica numa camada própria para ser tocável por inteiro
@@ -112,9 +170,9 @@ class _ShellState extends State<Shell> {
                                 width: 62,
                                 height: 62,
                                 decoration: BoxDecoration(
-                                  color: Cores.azul,
+                                  color: context.paleta.fundo,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Cores.azul, width: 6),
+                                  border: Border.all(color: context.paleta.fundo, width: 6),
                                 ),
                                 child: Icon(_itens[i].$1, color: Colors.white, size: 32),
                               ),
@@ -132,17 +190,18 @@ class _ShellState extends State<Shell> {
 }
 
 class _BarraInferior extends StatelessWidget {
-  const _BarraInferior({required this.altura, required this.aba, required this.onAba});
+  const _BarraInferior({required this.altura, required this.aba, required this.notif, required this.onAba});
 
   final double altura;
   final int aba;
+  final NotificacoesController notif;
   final ValueChanged<int> onAba;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: altura,
-      color: Colors.white,
+      color: context.paleta.superficie,
       padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: Row(
         children: [
@@ -158,14 +217,14 @@ class _BarraInferior extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      if (i != aba) Icon(_itens[i].$1, color: Cores.cinzaTexto, size: 26),
+                      if (i != aba) _IconeAba(indice: i, notif: notif, cor: context.paleta.textoSuave, tamanho: 26),
                       Padding(
                         padding: const EdgeInsets.only(top: 2, bottom: 12),
                         child: Text(
                           _itens[i].$2,
                           style: mono(i == aba ? 17 : 12,
                               peso: i == aba ? FontWeight.w700 : FontWeight.w500,
-                              cor: i == aba ? Cores.texto : Cores.cinzaTexto),
+                              cor: i == aba ? context.paleta.texto : context.paleta.textoSuave),
                         ),
                       ),
                     ],
@@ -181,8 +240,10 @@ class _BarraInferior extends StatelessWidget {
 
 /// Navegação compacta (só ícones) para celular deitado, onde a altura é escassa.
 class _Trilho extends StatelessWidget {
-  const _Trilho({required this.aba, required this.onAba, required this.onSair});
+  const _Trilho({required this.tema, required this.notif, required this.aba, required this.onAba, required this.onSair});
 
+  final TemaController tema;
+  final NotificacoesController notif;
   final int aba;
   final ValueChanged<int> onAba;
   final VoidCallback onSair;
@@ -191,7 +252,7 @@ class _Trilho extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 88,
-      color: Cores.azulLateral,
+      color: context.paleta.lateral,
       child: SafeArea(
         right: false,
         child: Column(
@@ -217,7 +278,7 @@ class _Trilho extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(_itens[i].$1, size: 24, color: i == aba ? Cores.azul : Colors.white70),
+                            _IconeAba(indice: i, notif: notif, tamanho: 24, cor: i == aba ? Cores.azul : Colors.white70),
                             const SizedBox(height: 2),
                             Text(
                               _itens[i].$2,
@@ -231,6 +292,7 @@ class _Trilho extends StatelessWidget {
                 ),
               ),
             const Spacer(),
+            BotaoTema(tema: tema, sobreFundoEscuro: true),
             Tooltip(
               message: 'Sair',
               child: IconButton(
@@ -249,9 +311,11 @@ class _Trilho extends StatelessWidget {
 }
 
 class _MenuLateral extends StatelessWidget {
-  const _MenuLateral({required this.app, required this.aba, required this.onAba});
+  const _MenuLateral({required this.app, required this.tema, required this.notif, required this.aba, required this.onAba});
 
   final AppState app;
+  final TemaController tema;
+  final NotificacoesController notif;
   final int aba;
   final ValueChanged<int> onAba;
 
@@ -259,7 +323,7 @@ class _MenuLateral extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 240,
-      color: Cores.azulLateral,
+      color: context.paleta.lateral,
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -268,7 +332,7 @@ class _MenuLateral extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const LogoVaga(largura: 40, fundo: Cores.azulLateral),
+                  LogoVaga(largura: 40, fundo: context.paleta.lateral),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -296,7 +360,7 @@ class _MenuLateral extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
                           child: Row(
                             children: [
-                              Icon(_itens[i].$1, size: 22, color: i == aba ? Cores.azul : Colors.white70),
+                              _IconeAba(indice: i, notif: notif, tamanho: 22, cor: i == aba ? Cores.azul : Colors.white70),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
@@ -313,6 +377,8 @@ class _MenuLateral extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
+              Align(alignment: Alignment.centerLeft, child: BotaoTema(tema: tema, sobreFundoEscuro: true)),
+              const SizedBox(height: 4),
               Text(app.usuario ?? '', style: mono(12, cor: Colors.white70), overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
               TextButton.icon(

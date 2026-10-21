@@ -3,19 +3,26 @@ import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'garagem_controller.dart';
 import 'garagem_scene.dart';
+import 'meu_carro.dart';
+import 'tema_controller.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 class MapaPage extends StatelessWidget {
   const MapaPage({
     super.key,
     required this.app,
     required this.garagem,
+    required this.meuCarro,
+    required this.tema,
     required this.mostrarSair,
     this.reservaInferior = 8,
   });
 
   final AppState app;
   final GaragemController garagem;
+  final MeuCarro meuCarro;
+  final TemaController tema;
   final bool mostrarSair;
 
   /// Folga abaixo dos controles (o círculo da navegação invade a moldura no celular).
@@ -30,18 +37,18 @@ class MapaPage extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white, width: 3),
+            border: Border.all(color: context.paleta.moldura, width: 3),
             borderRadius: BorderRadius.circular(32),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(29),
             child: ListenableBuilder(
-              listenable: Listenable.merge([app, garagem]),
+              listenable: Listenable.merge([app, garagem, meuCarro]),
               builder: (context, _) {
                 final stats = garagem.stats;
                 final alerta = app.nivelAtual(bloco, stats.livres);
-                final cena = GaragemScene(controller: garagem);
-                final estado = _FaixaEstado(alerta: alerta, livres: stats.livres, vaga: garagem.selecionada);
+                final cena = GaragemScene(controller: garagem, meuCarro: meuCarro);
+                final estado = _FaixaEstado(alerta: alerta, livres: stats.livres, garagem: garagem, meuCarro: meuCarro);
                 final controles = _Controles(garagem: garagem);
                 final cartao = _CartaoVagas(bloco: bloco, stats: stats);
 
@@ -58,7 +65,14 @@ class MapaPage extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (mostrarSair) ...[_BotaoSair(onTap: app.sair), const SizedBox(height: 10)],
+                                if (mostrarSair) ...[
+                                  Row(children: [
+                                    BotaoTema(tema: tema),
+                                    const SizedBox(width: 8),
+                                    _BotaoSair(onTap: app.sair),
+                                  ]),
+                                  const SizedBox(height: 10),
+                                ],
                                 cartao,
                                 const SizedBox(height: 10),
                                 estado,
@@ -79,7 +93,15 @@ class MapaPage extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (mostrarSair) _BotaoSair(onTap: app.sair),
+                            if (mostrarSair)
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  BotaoTema(tema: tema),
+                                  const SizedBox(height: 8),
+                                  _BotaoSair(onTap: app.sair),
+                                ],
+                              ),
                             const Spacer(),
                             cartao,
                           ],
@@ -113,15 +135,15 @@ class _BotaoSair extends StatelessWidget {
     return Tooltip(
       message: 'Sair',
       child: Material(
-        color: Colors.white,
+        color: context.paleta.superficie,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: const SizedBox(
+          child: SizedBox(
             width: alvoToque,
             height: alvoToque,
-            child: Icon(Icons.logout_rounded, color: Cores.azul, size: 22, semanticLabel: 'Sair'),
+            child: Icon(Icons.logout_rounded, color: context.paleta.destaque, size: 22, semanticLabel: 'Sair'),
           ),
         ),
       ),
@@ -144,7 +166,7 @@ class _CartaoVagas extends StatelessWidget {
       child: Container(
         width: 200,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22)),
+        decoration: BoxDecoration(color: context.paleta.superficie, borderRadius: BorderRadius.circular(22)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -153,8 +175,8 @@ class _CartaoVagas extends StatelessWidget {
             Container(
               height: 26,
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Cores.texto),
+                color: Colors.white, // trilho branco nos dois modos: o texto escuro fica legível sobre a barra amarela
+                border: Border.all(color: context.paleta.texto),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ClipRRect(
@@ -170,7 +192,7 @@ class _CartaoVagas extends StatelessWidget {
                         child: const ColoredBox(color: Cores.barra),
                       ),
                     ),
-                    Text('${stats.livres}/${stats.total}', style: mono(13, peso: FontWeight.w700)),
+                    Text('${stats.livres}/${stats.total}', style: mono(13, peso: FontWeight.w700, cor: Cores.texto)),
                   ],
                 ),
               ),
@@ -182,13 +204,31 @@ class _CartaoVagas extends StatelessWidget {
   }
 }
 
-/// Faixa de altura fixa (o mapa não "pula"): alerta em vigor, vaga tocada ou uma dica.
+/// Faixa de altura fixa (o mapa não "pula"): alerta em vigor, vaga tocada, "Meu carro" ou uma dica.
 class _FaixaEstado extends StatelessWidget {
-  const _FaixaEstado({required this.alerta, required this.livres, required this.vaga});
+  const _FaixaEstado({required this.alerta, required this.livres, required this.garagem, required this.meuCarro});
 
   final NivelAlerta? alerta;
   final int livres;
-  final Vaga? vaga;
+  final GaragemController garagem;
+  final MeuCarro meuCarro;
+
+  /// "Estacionei aqui": marca a vaga selecionada como a do usuário (e ocupa a vaga).
+  void _estacionarAqui() {
+    final v = garagem.selecionada;
+    if (v == null) return;
+    final antiga = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    if (antiga != null && antiga != v) garagem.liberarVaga(antiga);
+    garagem.ocupar(v);
+    meuCarro.marcar(garagem.nivel, v.code);
+  }
+
+  /// "Já saí": desmarca e libera a vaga.
+  void _jaSai() {
+    final v = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    meuCarro.limpar();
+    if (v != null) garagem.liberarVaga(v);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,10 +245,10 @@ class _FaixaEstado extends StatelessWidget {
             style: mono(12, peso: FontWeight.w700, cor: textoCor)),
       ));
     }
-    final v = vaga;
+    final v = garagem.selecionada;
     if (v != null) {
       chips.add(_Chip(
-        cor: Colors.white,
+        cor: context.paleta.superficie,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -225,6 +265,36 @@ class _FaixaEstado extends StatelessWidget {
           ],
         ),
       ));
+      if (!meuCarro.eMinha(garagem.nivel, v.code)) {
+        chips.add(_ChipBotao(
+          cor: Cores.azulBotao,
+          dica: 'Marcar a vaga ${v.code} como a do meu carro',
+          onTap: _estacionarAqui,
+          child: Text('Estacionei aqui', style: mono(12, peso: FontWeight.w700, cor: Colors.white)),
+        ));
+      }
+    }
+    if (meuCarro.estacionado) {
+      chips.add(_ChipBotao(
+        cor: const Color(0xFFFFD93D),
+        dica: 'Mostrar onde estacionei no mapa',
+        onTap: () => garagem.irParaVaga(meuCarro.nivel!, meuCarro.codigo!),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.directions_car_rounded, size: 16, color: Cores.texto),
+            const SizedBox(width: 6),
+            Text('Meu carro: ${meuCarro.rotulo} · ${meuCarro.tempoTexto()}',
+                style: mono(12, peso: FontWeight.w700, cor: Cores.texto)),
+          ],
+        ),
+      ));
+      chips.add(_ChipBotao(
+        cor: context.paleta.superficie,
+        dica: 'Já saí: liberar a vaga do meu carro',
+        onTap: _jaSai,
+        child: Text('Já saí', style: mono(12, peso: FontWeight.w700)),
+      ));
     }
 
     return SizedBox(
@@ -240,6 +310,37 @@ class _FaixaEstado extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (_, i) => Center(child: chips[i]),
             ),
+    );
+  }
+}
+
+/// Chip tocável (botão) da faixa de estado.
+class _ChipBotao extends StatelessWidget {
+  const _ChipBotao({required this.cor, required this.child, required this.onTap, required this.dica});
+
+  final Color cor;
+  final Widget child;
+  final VoidCallback onTap;
+  final String dica;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: dica,
+      excludeSemantics: true,
+      child: Material(
+        color: cor,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -301,7 +402,7 @@ class _Pilula extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: context.paleta.superficie, borderRadius: BorderRadius.circular(14)),
       child: Row(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
@@ -336,7 +437,7 @@ class _Segmentos extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Text(
                         rotulos[i],
-                        style: mono(12, peso: FontWeight.w700, cor: i == selecionado ? Colors.white : Cores.cinzaTexto),
+                        style: mono(12, peso: FontWeight.w700, cor: i == selecionado ? Colors.white : context.paleta.textoSuave),
                       ),
                     ),
                   ),
@@ -366,7 +467,7 @@ class _IconeAcao extends StatelessWidget {
         child: SizedBox(
           width: alvoToque - 4,
           height: alvoToque - 6,
-          child: Icon(icone, size: 20, color: Cores.azul, semanticLabel: dica),
+          child: Icon(icone, size: 20, color: context.paleta.destaque, semanticLabel: dica),
         ),
       ),
     );

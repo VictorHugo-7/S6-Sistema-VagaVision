@@ -142,7 +142,7 @@ class _AlertaBlocoPageState extends State<AlertaBlocoPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text(msg, style: mono(13, cor: Colors.white)),
+        content: Text(msg, style: mono(13)),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ));
@@ -162,8 +162,8 @@ class _AlertaBlocoPageState extends State<AlertaBlocoPage> {
               height: 48,
               padding: const EdgeInsets.fromLTRB(10, 0, 5, 0),
               decoration: BoxDecoration(
-                color: Cores.campo,
-                border: Border.all(color: Cores.texto),
+                color: context.paleta.campo,
+                border: Border.all(color: context.paleta.texto),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -177,7 +177,7 @@ class _AlertaBlocoPageState extends State<AlertaBlocoPage> {
                         border: InputBorder.none,
                         isDense: true,
                         hintText: 'Alertar com',
-                        hintStyle: mono(14, cor: Cores.cinzaTexto),
+                        hintStyle: mono(14, cor: context.paleta.textoSuave),
                       ),
                       onSubmitted: (_) => _salvar(n),
                     ),
@@ -190,7 +190,7 @@ class _AlertaBlocoPageState extends State<AlertaBlocoPage> {
           ],
           Text(
             'Os alertas disparam quando o número de vagas livres do bloco chega ao valor informado.',
-            style: mono(12, cor: Cores.cinzaTexto),
+            style: mono(12, cor: context.paleta.textoSuave),
           ),
         ],
       ),

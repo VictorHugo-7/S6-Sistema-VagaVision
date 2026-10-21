@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'theme.dart';
 
 /// Texto padrão do app (IBM Plex Mono, como no Figma).
-TextStyle textoMono(double tamanho, {FontWeight peso = FontWeight.w600, Color cor = Cores.preto, double? altura}) =>
+TextStyle textoMono(double tamanho, {FontWeight peso = FontWeight.w600, Color? cor, double? altura}) =>
     GoogleFonts.ibmPlexMono(fontSize: tamanho, fontWeight: peso, color: cor, height: altura);
 
 /// Moldura comum às telas do Figma: fundo azul, quadro arredondado com o conteúdo
@@ -28,8 +28,9 @@ class QuadroTela extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inferior = MediaQuery.of(context).padding.bottom;
+    final p = context.paleta;
     return Scaffold(
-      backgroundColor: Cores.fundo,
+      backgroundColor: p.fundo,
       body: SafeArea(
         bottom: false,
         child: Center(
@@ -42,9 +43,9 @@ class QuadroTela extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(11, 12, 11, 11),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: preenchido ? Cores.branco : null,
+                        color: preenchido ? p.superficie : null,
                         borderRadius: BorderRadius.circular(30),
-                        border: preenchido ? null : Border.all(color: Cores.moldura, width: 3),
+                        border: preenchido ? null : Border.all(color: p.moldura, width: 3),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(preenchido ? 30 : 27),
@@ -72,6 +73,7 @@ class _Rodape extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.paleta;
     return SizedBox(
       height: 120 + inferior,
       child: Stack(
@@ -79,9 +81,9 @@ class _Rodape extends StatelessWidget {
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: const BoxDecoration(
-                color: Cores.branco,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              decoration: BoxDecoration(
+                color: p.superficie,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Align(
                 alignment: Alignment.topCenter,
@@ -101,7 +103,7 @@ class _Rodape extends StatelessWidget {
                 width: 62,
                 height: 62,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(color: Cores.fundo, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: p.fundo, shape: BoxShape.circle),
                 child: icone,
               ),
             ),

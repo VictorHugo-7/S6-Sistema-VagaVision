@@ -4,16 +4,21 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../meu_carro.dart';
 import 'garagem_controller.dart';
 import 'projecao.dart';
+import 'quadro_tela.dart' show textoMono;
 import 'theme.dart';
 
 /// Cena da garagem: desenha o pátio em 3D (perspectiva) com o visual do Figma
 /// e trata os gestos (arrastar, pinça/scroll para zoom, toque para alternar a vaga).
 class GaragemScene extends StatefulWidget {
-  const GaragemScene({super.key, required this.controller});
+  const GaragemScene({super.key, required this.controller, this.meuCarro});
 
   final GaragemController controller;
+
+  /// Vaga onde o usuário estacionou (destacada no mapa).
+  final MeuCarro? meuCarro;
 
   @override
   State<GaragemScene> createState() => _GaragemSceneState();
@@ -65,7 +70,7 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
           onTapUp: (d) => widget.controller.toque(d.localPosition, _tamanho),
           child: CustomPaint(
             size: Size.infinite,
-            painter: _CenaPainter(widget.controller, _frame),
+            painter: _CenaPainter(widget.controller, _frame, context.paleta, meuCarro: widget.meuCarro),
           ),
         ),
       );
@@ -81,11 +86,13 @@ class _Face {
 }
 
 class _CenaPainter extends CustomPainter {
-  _CenaPainter(this.c, Listenable repaint) : super(repaint: repaint);
+  _CenaPainter(this.c, Listenable repaint, this.p, {this.meuCarro}) : super(repaint: repaint);
 
   final GaragemController c;
+  final MeuCarro? meuCarro;
 
-  static const _corCabine = Cores.fundo;
+  final Paleta p;
+  Color get _corCabine => p.fundo;
   static const _corPneu = Color(0xFF14284A);
 
   // Faces visíveis de uma caixa unitária (a face de baixo nunca aparece).
@@ -101,7 +108,7 @@ class _CenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Cores.fundo);
+    canvas.drawRect(Offset.zero & size, Paint()..color = p.fundo);
     final cam = c.camara(size);
 
     _moldura(canvas, cam);
@@ -119,6 +126,57 @@ class _CenaPainter extends CustomPainter {
     for (final item in itens) {
       item.$2();
     }
+    _destacarMeuCarro(canvas, cam);
+  }
+
+  /// Destaca a vaga do usuário ("Onde estacionei?"): contorno que pulsa e a etiqueta "Meu carro".
+  void _destacarMeuCarro(Canvas canvas, Camara cam) {
+    final m = meuCarro;
+    if (m == null || !m.estacionado || m.nivel != c.nivel) return;
+    final v = c.buscarVaga(m.nivel!, m.codigo!);
+    if (v == null) return;
+    const amarelo = Color(0xFFFFD93D);
+    final pulso = 0.5 + 0.5 * math.sin(DateTime.now().millisecondsSinceEpoch / 260);
+    final d2 = c.modo == Modo.d2;
+    final w = d2 ? ConfigPatio.vagaW : ConfigPatio.vagaW;
+    final d = d2 ? ConfigPatio.vagaD : ConfigPatio.vagaD;
+    final pts = cam.poligono([
+      V3(v.x - w / 2, 0.05, v.z - d / 2),
+      V3(v.x + w / 2, 0.05, v.z - d / 2),
+      V3(v.x + w / 2, 0.05, v.z + d / 2),
+      V3(v.x - w / 2, 0.05, v.z + d / 2),
+    ]);
+    if (pts != null) {
+      canvas.drawPath(
+        Path()..addPolygon(pts, true),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3 + 2 * pulso
+          ..strokeJoin = StrokeJoin.round
+          ..color = amarelo,
+      );
+    }
+    final ponta = cam.ponto(V3(v.x, d2 ? 0.3 : 3.0, v.z));
+    if (ponta == null) return;
+    final tp = TextPainter(
+      text: TextSpan(text: 'Meu carro', style: textoMono(11, peso: FontWeight.w700, cor: const Color(0xFF111111))),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final caixa = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: ponta - const Offset(0, 22), width: tp.width + 16, height: tp.height + 8),
+      const Radius.circular(10),
+    );
+    final cor = Paint()..color = amarelo;
+    canvas.drawRRect(caixa, cor);
+    canvas.drawPath(
+      Path()
+        ..moveTo(ponta.dx - 5, caixa.bottom - 1)
+        ..lineTo(ponta.dx + 5, caixa.bottom - 1)
+        ..lineTo(ponta.dx, ponta.dy)
+        ..close(),
+      cor,
+    );
+    tp.paint(canvas, caixa.center - Offset(tp.width / 2, tp.height / 2));
   }
 
   /// Moldura branca arredondada do pátio (a "caixa" do Figma), no chão.
@@ -131,7 +189,7 @@ class _CenaPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..strokeJoin = StrokeJoin.round
-        ..color = Cores.moldura,
+        ..color = p.moldura,
     );
   }
 
@@ -148,7 +206,7 @@ class _CenaPainter extends CustomPainter {
     for (final z in [-zFileira, zFileira]) {
       for (var i = 0; i < ConfigPatio.cols - 1; i++) {
         final x = (i - (ConfigPatio.cols - 1) / 2 + 0.5) * ConfigPatio.passo;
-        _retanguloPlano(canvas, cam, x, z, 0.17, ConfigPatio.vagaD, 0.02, Cores.divisor);
+        _retanguloPlano(canvas, cam, x, z, 0.17, ConfigPatio.vagaD, 0.02, p.divisor);
       }
     }
   }
@@ -244,5 +302,5 @@ class _CenaPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CenaPainter old) => old.c != c;
+  bool shouldRepaint(covariant _CenaPainter old) => old.c != c || old.p != p || old.meuCarro != meuCarro;
 }

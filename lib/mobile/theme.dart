@@ -28,3 +28,105 @@ class ConfigPatio {
   static const larguraPatio = (cols - 1) * passo + vagaW + 2 * margem;
   static const profundidadePatio = aisle + 2 * vagaD + 2 * margem;
 }
+
+/// Cores que mudam entre o modo claro e o escuro (use `context.paleta`).
+class Paleta extends ThemeExtension<Paleta> {
+  const Paleta({
+    required this.fundo,
+    required this.superficie,
+    required this.folha,
+    required this.texto,
+    required this.textoSuave,
+    required this.borda,
+    required this.moldura,
+    required this.divisor,
+    required this.destaque,
+    required this.campo,
+  });
+
+  final Color fundo; // fundo azul das telas e da cena
+  final Color superficie; // pílulas, cartões, folha inferior
+  final Color folha; // folha do login
+  final Color texto;
+  final Color textoSuave;
+  final Color borda; // contorno preto dos botões do mapa
+  final Color moldura; // linha do quadro e do pátio
+  final Color divisor; // linhas entre as vagas
+  final Color destaque; // o azul-marinho usado em barras e ícones sobre a superfície
+  final Color campo;
+
+  static const claro = Paleta(
+    fundo: Cores.fundo,
+    superficie: Cores.branco,
+    folha: Color(0xFFF6F8FA),
+    texto: Cores.preto,
+    textoSuave: Color(0xFF8B929C),
+    borda: Cores.preto,
+    moldura: Cores.moldura,
+    divisor: Cores.divisor,
+    destaque: Cores.fundo,
+    campo: Color(0xFFF2F2F2),
+  );
+
+  static const escuro = Paleta(
+    fundo: Color(0xFF0B1626),
+    superficie: Color(0xFF16233A),
+    folha: Color(0xFF111C2E),
+    texto: Color(0xFFE8ECF3),
+    textoSuave: Color(0xFF9AA7BD),
+    borda: Color(0xFF5B7399),
+    moldura: Color(0xFF8FA3C4),
+    divisor: Color(0xFF2C3E5C),
+    destaque: Color(0xFF8FB4FF),
+    campo: Color(0xFF1E2C46),
+  );
+
+  @override
+  Paleta copyWith({Color? fundo, Color? superficie, Color? folha, Color? texto, Color? textoSuave, Color? borda,
+          Color? moldura, Color? divisor, Color? destaque, Color? campo}) =>
+      Paleta(
+        fundo: fundo ?? this.fundo,
+        superficie: superficie ?? this.superficie,
+        folha: folha ?? this.folha,
+        texto: texto ?? this.texto,
+        textoSuave: textoSuave ?? this.textoSuave,
+        borda: borda ?? this.borda,
+        moldura: moldura ?? this.moldura,
+        divisor: divisor ?? this.divisor,
+        destaque: destaque ?? this.destaque,
+        campo: campo ?? this.campo,
+      );
+
+  @override
+  Paleta lerp(ThemeExtension<Paleta>? other, double t) {
+    if (other is! Paleta) return this;
+    Color l(Color a, Color b) => Color.lerp(a, b, t)!;
+    return Paleta(
+      fundo: l(fundo, other.fundo),
+      superficie: l(superficie, other.superficie),
+      folha: l(folha, other.folha),
+      texto: l(texto, other.texto),
+      textoSuave: l(textoSuave, other.textoSuave),
+      borda: l(borda, other.borda),
+      moldura: l(moldura, other.moldura),
+      divisor: l(divisor, other.divisor),
+      destaque: l(destaque, other.destaque),
+      campo: l(campo, other.campo),
+    );
+  }
+}
+
+extension PaletaDoContexto on BuildContext {
+  Paleta get paleta => Theme.of(this).extension<Paleta>() ?? Paleta.claro;
+}
+
+ThemeData temaDoApp(Paleta p, Brightness brilho) => ThemeData(
+      useMaterial3: true,
+      brightness: brilho,
+      scaffoldBackgroundColor: p.fundo,
+      colorScheme: ColorScheme.fromSeed(seedColor: Cores.azulBotao, brightness: brilho).copyWith(
+        onSurface: p.texto,
+        surface: p.superficie,
+      ),
+      extensions: [p],
+    );

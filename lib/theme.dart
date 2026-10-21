@@ -33,8 +33,113 @@ class Cores {
 /// Área mínima de toque recomendada (Material / HIG).
 const double alvoToque = 44;
 
-TextStyle mono(double tamanho, {FontWeight peso = FontWeight.w500, Color cor = Cores.texto}) =>
+/// Texto padrão (IBM Plex Mono). Sem [cor], herda a cor do tema (clara ou escura).
+TextStyle mono(double tamanho, {FontWeight peso = FontWeight.w500, Color? cor}) =>
     GoogleFonts.ibmPlexMono(fontSize: tamanho, fontWeight: peso, color: cor);
+
+/// Cores que mudam entre o modo claro e o escuro. Use `context.paleta` (se a cor não
+/// estiver aqui, ela é igual nos dois modos e continua em [Cores]).
+class Paleta extends ThemeExtension<Paleta> {
+  const Paleta({
+    required this.fundo,
+    required this.lateral,
+    required this.profundo,
+    required this.superficie,
+    required this.folha,
+    required this.texto,
+    required this.textoSuave,
+    required this.campo,
+    required this.destaque,
+    required this.moldura,
+  });
+
+  final Color fundo; // fundo das telas
+  final Color lateral; // menu lateral / trilho
+  final Color profundo; // splash e topo do login
+  final Color superficie; // cartões, barra inferior, pílulas
+  final Color folha; // folha do login
+  final Color texto;
+  final Color textoSuave;
+  final Color campo;
+  final Color destaque; // o azul usado em ícones/linhas sobre a superfície
+  final Color moldura; // contorno do mapa
+
+  static const claro = Paleta(
+    fundo: Cores.azul,
+    lateral: Cores.azulLateral,
+    profundo: Cores.azulEscuro,
+    superficie: Colors.white,
+    folha: Cores.folha,
+    texto: Cores.texto,
+    textoSuave: Cores.cinzaTexto,
+    campo: Cores.campo,
+    destaque: Cores.azul,
+    moldura: Colors.white,
+  );
+
+  static const escuro = Paleta(
+    fundo: Color(0xFF0B1626),
+    lateral: Color(0xFF070F1B),
+    profundo: Color(0xFF050B14),
+    superficie: Color(0xFF16233A),
+    folha: Color(0xFF111C2E),
+    texto: Color(0xFFE8ECF3),
+    textoSuave: Color(0xFF9AA7BD),
+    campo: Color(0xFF1E2C46),
+    destaque: Color(0xFF8FB4FF),
+    moldura: Color(0xFF5B7399),
+  );
+
+  @override
+  Paleta copyWith({Color? fundo, Color? lateral, Color? profundo, Color? superficie, Color? folha, Color? texto,
+          Color? textoSuave, Color? campo, Color? destaque, Color? moldura}) =>
+      Paleta(
+        fundo: fundo ?? this.fundo,
+        lateral: lateral ?? this.lateral,
+        profundo: profundo ?? this.profundo,
+        superficie: superficie ?? this.superficie,
+        folha: folha ?? this.folha,
+        texto: texto ?? this.texto,
+        textoSuave: textoSuave ?? this.textoSuave,
+        campo: campo ?? this.campo,
+        destaque: destaque ?? this.destaque,
+        moldura: moldura ?? this.moldura,
+      );
+
+  @override
+  Paleta lerp(ThemeExtension<Paleta>? other, double t) {
+    if (other is! Paleta) return this;
+    Color l(Color a, Color b) => Color.lerp(a, b, t)!;
+    return Paleta(
+      fundo: l(fundo, other.fundo),
+      lateral: l(lateral, other.lateral),
+      profundo: l(profundo, other.profundo),
+      superficie: l(superficie, other.superficie),
+      folha: l(folha, other.folha),
+      texto: l(texto, other.texto),
+      textoSuave: l(textoSuave, other.textoSuave),
+      campo: l(campo, other.campo),
+      destaque: l(destaque, other.destaque),
+      moldura: l(moldura, other.moldura),
+    );
+  }
+}
+
+extension PaletaDoContexto on BuildContext {
+  Paleta get paleta => Theme.of(this).extension<Paleta>() ?? Paleta.claro;
+}
+
+/// Tema do app para o modo escolhido.
+ThemeData temaDoApp(Paleta p, Brightness brilho) => ThemeData(
+      useMaterial3: true,
+      brightness: brilho,
+      scaffoldBackgroundColor: p.fundo,
+      colorScheme: ColorScheme.fromSeed(seedColor: Cores.azulBotao, brightness: brilho).copyWith(
+        onSurface: p.texto,
+        surface: p.superficie,
+      ),
+      extensions: [p],
+    );
 
 class ConfigPatio {
   // Trecho do estacionamento do Bloco U em escala real (medido na planta do campus):

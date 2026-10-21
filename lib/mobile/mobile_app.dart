@@ -1,45 +1,85 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' show User;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../auth_service.dart';
+import '../banner_aviso.dart';
+import '../notificacoes.dart';
+import '../tema_controller.dart';
 import 'garagem_pagina.dart';
 import 'login_page.dart';
 import 'theme.dart';
 
 /// Versão do app para celular (Android/iOS): telas do Figma com mapa 3D em quadro, retrato.
 /// [semLogin] abre direto no mapa, sem login nem Firebase (só para ver o visual).
-class MobileApp extends StatelessWidget {
+class MobileApp extends StatefulWidget {
   const MobileApp({super.key, this.semLogin = false});
 
   final bool semLogin;
 
   @override
+  State<MobileApp> createState() => _MobileAppState();
+}
+
+class _MobileAppState extends State<MobileApp> {
+  final _tema = TemaController();
+  final _notif = NotificacoesController();
+  final _mensageiro = GlobalKey<ScaffoldMessengerState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _tema.carregar();
+    _notif.aoChegar = (n) => mostrarBannerAviso(_mensageiro.currentState, n);
+  }
+
+  @override
+  void dispose() {
+    _tema.dispose();
+    _notif.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Barra de status transparente com ícones claros (fundo azul); barra de navegação branca como a folha de baixo.
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ));
-    return MaterialApp(
-      title: 'VagaVision',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Cores.fundo,
-        colorScheme: ColorScheme.fromSeed(seedColor: Cores.azulBotao),
+    return ListenableBuilder(
+      listenable: _tema,
+      builder: (context, _) => MaterialApp(
+        title: 'VagaVision',
+        debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: _mensageiro,
+        themeMode: _tema.modo,
+        theme: temaDoApp(Paleta.claro, Brightness.light),
+        darkTheme: temaDoApp(Paleta.escuro, Brightness.dark),
+        builder: (context, child) {
+          // Barra de status transparente com ícones claros (fundo azul); barra de navegação
+          // acompanha a folha de baixo (branca no claro, azul-escuro no modo escuro).
+          final escuro = Theme.of(context).brightness == Brightness.dark;
+          SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: context.paleta.superficie,
+            systemNavigationBarIconBrightness: escuro ? Brightness.light : Brightness.dark,
+          ));
+          return child!;
+        },
+        home: widget.semLogin
+            ? GaragemPagina(tema: _tema, notif: _notif)
+            : PortaoAuth(tema: _tema, notif: _notif),
       ),
-      home: semLogin ? const GaragemPagina() : const PortaoAuth(),
     );
   }
 }
 
 /// Decide a tela inicial: login se não houver usuário, garagem 3D se estiver logado.
 class PortaoAuth extends StatefulWidget {
-  const PortaoAuth({super.key});
+  const PortaoAuth({super.key, required this.tema, required this.notif});
+
+  final TemaController tema;
+  final NotificacoesController notif;
 
   @override
   State<PortaoAuth> createState() => _PortaoAuthState();
@@ -57,7 +97,7 @@ class _PortaoAuthState extends State<PortaoAuth> {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (snapshot.data != null) {
-          return GaragemPagina(onSair: AuthService.sair);
+          return GaragemPagina(tema: widget.tema, notif: widget.notif, onSair: AuthService.sair);
         }
         return const LoginPage();
       },
