@@ -157,6 +157,39 @@ class GaragemController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Vaga do [nivel] (0 = Nível 1) com o [codigo], ou `null`.
+  Vaga? buscarVaga(int nivel, String codigo) {
+    if (nivel < 0 || nivel >= niveis.length) return null;
+    for (final v in niveis[nivel]) {
+      if (v.code == codigo) return v;
+    }
+    return null;
+  }
+
+  /// Marca a vaga como ocupada (o usuário estacionou nela).
+  void ocupar(Vaga vaga) {
+    if (vaga.ocupada) return;
+    vaga.ocupada = true;
+    vaga.minutosOcupada = 0;
+    notifyListeners();
+  }
+
+  /// Libera a vaga (o usuário saiu).
+  void liberarVaga(Vaga vaga) {
+    if (!vaga.ocupada) return;
+    vaga.ocupada = false;
+    notifyListeners();
+  }
+
+  /// Vai para o [nivel] e seleciona a vaga [codigo] (usado por "Onde estacionei?").
+  void irParaVaga(int nivel, String codigo) {
+    final v = buscarVaga(nivel, codigo);
+    if (v == null) return;
+    _nivel = nivel;
+    _selecionada = v;
+    notifyListeners();
+  }
+
   // ---------- câmera ----------
 
   double _meiaAlturaOrto(double aspecto) {

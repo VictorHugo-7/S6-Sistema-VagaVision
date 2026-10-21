@@ -11,13 +11,13 @@ class SplashPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Cores.azulEscuro,
+      backgroundColor: context.paleta.profundo,
       body: Center(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
           duration: const Duration(milliseconds: 800),
           builder: (context, v, child) => Opacity(opacity: v, child: child),
-          child: const LogoVaga(fundo: Cores.azulEscuro, largura: 110),
+          child: LogoVaga(fundo: context.paleta.profundo, largura: 110),
         ),
       ),
     );
@@ -105,9 +105,9 @@ class _LoginPageState extends State<LoginPage> {
           constraints: const BoxConstraints(minHeight: 48),
           child: Center(
             child: Text(
-              _erro ?? 'Entrar com sua conta Google',
+              _erro ?? 'Entre com sua conta Google',
               textAlign: TextAlign.center,
-              style: mono(14, cor: _erro == null ? Cores.cinzaTexto : const Color(0xFFC0392B)),
+              style: mono(14, cor: _erro == null ? context.paleta.textoSuave : const Color(0xFFE5604F)),
             ),
           ),
         ),
@@ -115,11 +115,11 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _marca({double logo = 130, double titulo = 34}) {
+  Widget _marca(BuildContext context, {double logo = 130, double titulo = 34}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        LogoVaga(largura: logo),
+        LogoVaga(largura: logo, fundo: context.paleta.fundo),
         SizedBox(height: logo * 0.18),
         Text('VagaVision', style: mono(titulo, peso: FontWeight.w700, cor: Colors.white)),
       ],
@@ -128,14 +128,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _cartao(BuildContext context) => Container(
         padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(color: Cores.folha, borderRadius: BorderRadius.circular(28)),
+        decoration: BoxDecoration(color: context.paleta.folha, borderRadius: BorderRadius.circular(28)),
         child: _acoes(context),
       );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Cores.azul,
+      backgroundColor: context.paleta.fundo,
       body: SafeArea(
         bottom: false, // a folha inferior vai até a borda e cuida do próprio recuo
         child: LayoutBuilder(builder: (context, c) {
@@ -149,7 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(child: Center(child: _marca(logo: 96, titulo: 26))),
+                    Expanded(child: Center(child: _marca(context, logo: 96, titulo: 26))),
                     const SizedBox(width: 32),
                     Expanded(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 400), child: _cartao(context))),
                   ],
@@ -167,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                   constraints: const BoxConstraints(maxWidth: 420),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [_marca(), const SizedBox(height: 48), _cartao(context)],
+                    children: [_marca(context), const SizedBox(height: 48), _cartao(context)],
                   ),
                 ),
               ),
@@ -184,14 +184,14 @@ class _LoginPageState extends State<LoginPage> {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: _marca()),
+                        child: Center(child: _marca(context)),
                       ),
                     ),
                     Container(
                       width: double.infinity,
                       padding: EdgeInsets.fromLTRB(46, 42, 46, 24 + MediaQuery.paddingOf(context).bottom),
-                      decoration: const BoxDecoration(
-                        color: Cores.folha,
+                      decoration: BoxDecoration(
+                        color: context.paleta.folha,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                       ),
                       child: _acoes(context),

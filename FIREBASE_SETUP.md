@@ -101,3 +101,18 @@ a leitura/escrita pode exigir `request.auth.token.email.matches('.*@maua.br')`.
 
 `usuarios/{uid}`: `nome`, `email`, `foto`, `provedor`, `criadoEm`, `ultimoLogin`.
 Você vê/edita esses dados em Firebase Console → Firestore Database.
+
+## Testar no celular pelo navegador (Firebase Hosting)
+
+O `firebase.json` já tem o Hosting configurado (pasta `build/web`). Em telas estreitas (< 600 px)
+o site abre a versão mobile (mapa 3D em quadro); em telas largas, a versão web com menu lateral.
+
+```bash
+flutter build web
+npm install -g firebase-tools   # só na primeira vez
+firebase login
+firebase deploy --only hosting
+```
+
+O endereço sai no final (`https://vagavision-13295.web.app`). Abra no celular. O domínio `.web.app`
+já está autorizado no Firebase Authentication, então o login Google funciona.

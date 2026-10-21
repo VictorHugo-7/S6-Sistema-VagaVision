@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'tema_controller.dart';
 import 'theme.dart';
 
 class BotaoAzul extends StatelessWidget {
@@ -58,7 +59,7 @@ class FolhaBranca extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
+      decoration: BoxDecoration(color: context.paleta.superficie, borderRadius: BorderRadius.circular(32)),
       padding: const EdgeInsets.fromLTRB(26, 28, 26, 22),
       child: Column(
         children: [
@@ -66,13 +67,51 @@ class FolhaBranca extends StatelessWidget {
           const SizedBox(height: 18),
           Container(
             height: 8,
-            decoration: BoxDecoration(color: Cores.azul, borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: context.paleta.destaque, borderRadius: BorderRadius.circular(4)),
           ),
           const SizedBox(height: 16),
           Expanded(child: ListView(children: filhos)),
           const SizedBox(height: 12),
           rodape,
         ],
+      ),
+    );
+  }
+}
+
+/// Botão redondo que alterna entre modo claro e escuro.
+class BotaoTema extends StatelessWidget {
+  const BotaoTema({super.key, required this.tema, this.sobreFundoEscuro = false});
+
+  final TemaController tema;
+
+  /// `true` quando o botão fica sobre o azul-marinho (menu lateral), sem a pílula de fundo.
+  final bool sobreFundoEscuro;
+
+  @override
+  Widget build(BuildContext context) {
+    final brilho = Theme.of(context).brightness;
+    final escuro = brilho == Brightness.dark;
+    final p = context.paleta;
+    return Tooltip(
+      message: escuro ? 'Modo claro' : 'Modo escuro',
+      child: Material(
+        color: sobreFundoEscuro ? Colors.transparent : p.superficie,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => tema.alternar(brilho),
+          child: SizedBox(
+            width: alvoToque,
+            height: alvoToque,
+            child: Icon(
+              escuro ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              size: 22,
+              color: sobreFundoEscuro ? Colors.white : p.destaque,
+              semanticLabel: escuro ? 'Modo claro' : 'Modo escuro',
+            ),
+          ),
+        ),
       ),
     );
   }

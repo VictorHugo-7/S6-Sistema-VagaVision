@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../auth_service.dart';
 import 'logo.dart';
+import 'theme.dart';
 
 /// Tela de login (design do Figma): fundo azul-marinho, logo, e folha inferior
 /// com o botão "Entrar" (conta Google).
@@ -14,10 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const _fundo = Color(0xFF203D65);
-  static const _folha = Color(0xFFF6F8FA);
   static const _azul = Color(0xFF124BBD);
-  static const _cinza = Color(0xFF8B929C);
 
   bool _carregando = false;
   String? _erro;
@@ -45,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _fundo,
+      backgroundColor: context.paleta.fundo,
       body: Column(
         children: [
           Expanded(
@@ -68,9 +66,9 @@ class _LoginPageState extends State<LoginPage> {
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(28, 32, 28, 0),
-                decoration: const BoxDecoration(
-                  color: _folha,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                decoration: BoxDecoration(
+                  color: context.paleta.folha,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 child: SafeArea(
                   top: false,
@@ -84,14 +82,14 @@ class _LoginPageState extends State<LoginPage> {
                         Text(
                           _erro!,
                           textAlign: TextAlign.center,
-                          style: _mono(12, FontWeight.w500, const Color(0xFFC0392B)),
+                          style: _mono(12, FontWeight.w500, const Color(0xFFE5604F)),
                         ),
                       ],
                       const SizedBox(height: 32),
                       Text(
-                        'Entrar com sua conta Google',
+                        'Entre com sua conta Google',
                         textAlign: TextAlign.center,
-                        style: _mono(12, FontWeight.w400, _cinza),
+                        style: _mono(12, FontWeight.w400, context.paleta.textoSuave),
                       ),
                     ],
                   ),

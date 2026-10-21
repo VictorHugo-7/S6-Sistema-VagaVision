@@ -1,7 +1,7 @@
 ## S6-Sistema-VagaVision
 
 Aplicativo Flutter de monitoramento de vagas da Garagem Central (VagaVision): web, Android e desktop,
-com login Google (Firebase) e cena 3D do estacionamento do Bloco U em escala real, desenhada com `CustomPainter`.
+com login Google (Firebase) e cena 3D desenhada com `CustomPainter`.
 
 ### Requisitos
 
@@ -34,6 +34,11 @@ flutter run -d chrome --dart-define=SEM_LOGIN=true
 - Botões 3D/2D e Nível 1/2; "Sortear ocupação" e "Liberar todas as vagas"
 - **Alertas**: lista de blocos com configuração de limites (simples, médio, severo)
 - A navegação se adapta: barra inferior (celular em pé), trilho (celular deitado) e menu lateral (web/tablet)
+- **Modo escuro:** botão de lua/sol (menu lateral na web; ao lado do sino no mapa do celular). A escolha fica salva; na primeira vez segue o tema do aparelho
+- **Avisos (notificações):** quando uma vaga é desocupada aparece "Vaga A3 desocupada" (várias de uma vez viram um aviso só); a chave no topo da tela Avisos liga/desliga isso. Também avisa quando um alerta dispara (web: limites simples/médio/severo; celular: vaga liberada ou bloco lotado) aparece um banner e o aviso fica no histórico da aba/tela "Avisos", com contador de não lidos. São avisos dentro do app; notificação push com o app fechado exigiria Firebase Cloud Messaging e um servidor
+- **Onde estacionei?:** toque numa vaga e use "Estacionei aqui" (web) / "Estacionei na vaga X" (celular). A vaga fica destacada em amarelo no mapa com a etiqueta "Meu carro", e o app lembra dela mesmo depois de fechar. Toque no cartão "Meu carro" para voltar até ela; "Já saí" libera a vaga
+- **Painel e previsão de lotação:** aba "Painel" (web) / ícone de gráfico no mapa (celular). Mostra ocupação agora, pico e melhor horário de hoje, previsão das próximas 6 horas ("deve lotar por volta das 19h"), gráfico de ocupação por hora (escolha o dia da semana) e média por dia. A previsão parte de uma curva típica de campus e vai se ajustando às leituras feitas no aparelho (guardadas localmente; a cada mudança e a cada 5 min)
+- **Widget na tela inicial (Android):** segure um espaço vazio da tela inicial → Widgets → VagaVision. Mostra as vagas livres do Bloco U (somando os 2 níveis) e abre o app ao tocar. Ele é atualizado enquanto o app está em uso; versão para iPhone (WidgetKit) não está incluída
 - "Sair" volta ao login
 
 ### Estrutura
@@ -47,5 +52,6 @@ flutter run -d chrome --dart-define=SEM_LOGIN=true
 - `lib/shell.dart` – navegação responsiva (Mapa / Alertas)
 - `lib/mapa_page.dart`, `lib/alertas_page.dart` – telas
 - `lib/garagem_controller.dart`, `lib/garagem_scene.dart`, `lib/projecao.dart` – vagas, cena 3D/2D e projeção
-- `lib/entorno_bloco_u.dart` – medidas do entorno do Bloco U (vias, calçadas, canteiro e prédios) em escala real
-- `lib/theme.dart`, `lib/widgets.dart`, `lib/logo.dart` – paleta, componentes e logos
+- `lib/theme.dart`, `lib/widgets.dart`, `lib/logo.dart` – paleta (claro/escuro), componentes e logos
+- `lib/historico.dart`, `lib/meu_carro.dart`, `lib/painel_analise.dart`, `lib/widget_inicial.dart` – histórico/previsão, "Onde estacionei?", gráficos do painel e ponte com o widget do Android (`android/.../VagasWidget.kt`)
+- `lib/tema_controller.dart`, `lib/notificacoes.dart`, `lib/banner_aviso.dart`, `lib/avisos_page.dart` – modo escuro e central de avisos (compartilhados com `lib/mobile/`)
