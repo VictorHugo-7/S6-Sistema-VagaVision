@@ -4,6 +4,7 @@ import 'app_state.dart';
 import 'garagem_controller.dart';
 import 'garagem_scene.dart';
 import 'meu_carro.dart';
+import 'ocupacao_ao_vivo.dart';
 import 'tema_controller.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -384,10 +385,14 @@ class _Controles extends StatelessWidget {
           selecionado: garagem.nivel,
           onSel: garagem.setNivel,
         ),
-        _Pilula(children: [
-          _IconeAcao(icone: Icons.shuffle_rounded, dica: 'Sortear ocupação', onTap: garagem.sortear),
-          _IconeAcao(icone: Icons.cleaning_services_rounded, dica: 'Liberar todas as vagas', onTap: garagem.liberar),
-        ]),
+        // nível com câmera: a ocupação vem do vídeo, então não há sorteio
+        if (garagem.leituraAtual case final leitura?)
+          SeloCamera(leitura: leitura, estilo: mono(12, peso: FontWeight.w700), fundo: context.paleta.superficie)
+        else
+          _Pilula(children: [
+            _IconeAcao(icone: Icons.shuffle_rounded, dica: 'Sortear ocupação', onTap: garagem.sortear),
+            _IconeAcao(icone: Icons.cleaning_services_rounded, dica: 'Liberar todas as vagas', onTap: garagem.liberar),
+          ]),
       ],
     );
   }

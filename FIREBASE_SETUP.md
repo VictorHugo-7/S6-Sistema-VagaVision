@@ -14,7 +14,8 @@ Não precisa registrar nada no Azure/Microsoft: o Google é ativado direto no Fi
 2. **Build → Authentication → Sign-in method → Google → Enable**.
    Escolha um **e-mail de suporte do projeto** e clique em **Salvar**.
 3. **Build → Firestore Database → Create database** (se ainda não existir) e, na aba **Rules**,
-   cole o conteúdo de `firestore.rules` e publique.
+   cole o conteúdo de `firestore.rules` e publique. As regras também liberam a leitura da coleção
+   `ocupacao` (vagas detectadas pela câmera, ver `visao/README.md`) para usuários logados.
 4. Em **Authentication → Settings → Authorized domains** confirme que `localhost` está na lista
    (já vem por padrão).
 

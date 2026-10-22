@@ -39,6 +39,7 @@ flutter run -d chrome --dart-define=SEM_LOGIN=true
 - **Onde estacionei?:** toque numa vaga e use "Estacionei aqui" (web) / "Estacionei na vaga X" (celular). A vaga fica destacada em amarelo no mapa com a etiqueta "Meu carro", e o app lembra dela mesmo depois de fechar. Toque no cartão "Meu carro" para voltar até ela; "Já saí" libera a vaga
 - **Painel e previsão de lotação:** aba "Painel" (web) / ícone de gráfico no mapa (celular). Mostra ocupação agora, pico e melhor horário de hoje, previsão das próximas 6 horas ("deve lotar por volta das 19h"), gráfico de ocupação por hora (escolha o dia da semana) e média por dia. A previsão parte de uma curva típica de campus e vai se ajustando às leituras feitas no aparelho (guardadas localmente; a cada mudança e a cada 5 min)
 - **Widget na tela inicial (Android):** segure um espaço vazio da tela inicial → Widgets → VagaVision. Mostra as vagas livres do Bloco U (somando os 2 níveis) e abre o app ao tocar. Ele é atualizado enquanto o app está em uso; versão para iPhone (WidgetKit) não está incluída
+- **Câmera (ocupação real):** o detector em `visao/` (YOLOv8) analisa o vídeo do estacionamento e grava a ocupação no Firestore (coleção `ocupacao`); o app escuta e atualiza o mapa, os avisos e o painel em tempo real. O nível com câmera mostra "Câmera ao vivo" no lugar de "Sortear / Liberar"; os demais seguem simulados. Como configurar e rodar: `visao/README.md`
 - "Sair" volta ao login
 
 ### Estrutura
@@ -55,3 +56,5 @@ flutter run -d chrome --dart-define=SEM_LOGIN=true
 - `lib/theme.dart`, `lib/widgets.dart`, `lib/logo.dart` – paleta (claro/escuro), componentes e logos
 - `lib/historico.dart`, `lib/meu_carro.dart`, `lib/painel_analise.dart`, `lib/widget_inicial.dart` – histórico/previsão, "Onde estacionei?", gráficos do painel e ponte com o widget do Android (`android/.../VagasWidget.kt`)
 - `lib/tema_controller.dart`, `lib/notificacoes.dart`, `lib/banner_aviso.dart`, `lib/avisos_page.dart` – modo escuro e central de avisos (compartilhados com `lib/mobile/`)
+- `lib/ocupacao_ao_vivo.dart` – escuta no Firestore a ocupação detectada pela câmera e o selo "Câmera ao vivo" (compartilhado com `lib/mobile/`)
+- `visao/` – detector de ocupação em Python (YOLOv8): `mapear_vagas.py` marca as vagas, `detectar_ocupacao.py` detecta e `publicar_firebase.py` envia ao app

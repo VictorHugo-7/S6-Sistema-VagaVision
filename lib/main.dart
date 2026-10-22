@@ -16,6 +16,7 @@ import 'login_page.dart';
 import 'meu_carro.dart';
 import 'mobile/mobile_app.dart' show MobileApp;
 import 'notificacoes.dart';
+import 'ocupacao_ao_vivo.dart';
 import 'shell.dart';
 import 'tema_controller.dart';
 import 'theme.dart';
@@ -67,6 +68,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
   final _historico = HistoricoOcupacao();
+  // ocupação detectada pela câmera (visao/detectar_ocupacao.py --firebase)
+  late final _aoVivo = OcupacaoAoVivo(_garagem.aplicarLeitura);
   Timer? _amostragem;
   NivelAlerta? _nivelAnterior;
   bool _splash = true;
@@ -87,9 +90,19 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
     // Gera um aviso quando o nível de alerta do bloco muda (sorteio, toque numa vaga ou novos limites).
     _garagem.addListener(_verificarAlertas);
     _app.addListener(_verificarAlertas);
+    _app.addListener(_sincronizarAoVivo);
     Future.delayed(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _splash = false);
     });
+  }
+
+  /// Escuta a câmera só com usuário logado (as regras do Firestore exigem login).
+  void _sincronizarAoVivo() {
+    if (_app.logado && !widget.semFirebase) {
+      _aoVivo.iniciar();
+    } else {
+      _aoVivo.parar();
+    }
   }
 
   void _amostrar() {
@@ -134,6 +147,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   @override
   void dispose() {
     _amostragem?.cancel();
+    _aoVivo.parar();
+    _app.removeListener(_sincronizarAoVivo);
     _meuCarro.dispose();
     _historico.dispose();
     _garagem.removeListener(_verificarAlertas);
