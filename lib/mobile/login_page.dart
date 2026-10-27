@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../auth_service.dart';
+import '../login_email.dart';
 import 'logo.dart';
 import 'theme.dart';
 
@@ -18,7 +19,16 @@ class _LoginPageState extends State<LoginPage> {
   static const _azul = Color(0xFF124BBD);
 
   bool _carregando = false;
+  bool _lembrar = true;
   String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.lembrarAtivo().then((v) {
+      if (mounted) setState(() => _lembrar = v);
+    });
+  }
 
   TextStyle _mono(double tamanho, FontWeight peso, Color cor) =>
       GoogleFonts.ibmPlexMono(fontSize: tamanho, fontWeight: peso, color: cor);
@@ -29,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
       _erro = null;
     });
     try {
-      await AuthService.entrarComGoogle();
+      await AuthService.entrarComGoogle(lembrar: _lembrar);
       // Sucesso: o PortaoAuth (main.dart) troca esta tela pela garagem 3D sozinho.
     } on ErroLogin catch (e) {
       if (mounted) setState(() => _erro = e.mensagem);
@@ -44,7 +54,12 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.paleta.fundo,
-      body: Column(
+      body: LayoutBuilder(
+        builder: (context, c) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
         children: [
           Expanded(
             child: Align(
@@ -77,6 +92,12 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _botaoEntrar(),
+                      const SizedBox(height: 10),
+                      LembrarDeMim(
+                        estilo: _estiloEmail(context),
+                        valor: _lembrar,
+                        onChanged: (v) => setState(() => _lembrar = v),
+                      ),
                       if (_erro != null) ...[
                         const SizedBox(height: 14),
                         Text(
@@ -91,6 +112,8 @@ class _LoginPageState extends State<LoginPage> {
                         textAlign: TextAlign.center,
                         style: _mono(12, FontWeight.w400, context.paleta.textoSuave),
                       ),
+                      const SizedBox(height: 8),
+                      FormularioEmail(estilo: _estiloEmail(context), lembrar: _lembrar),
                     ],
                   ),
                 ),
@@ -98,7 +121,25 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ],
+              ),
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  EstiloLoginEmail _estiloEmail(BuildContext context) {
+    final p = context.paleta;
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    return EstiloLoginEmail(
+      texto: p.texto,
+      suave: p.textoSuave,
+      campo: escuro ? p.campo : Colors.white,
+      botao: _azul,
+      erro: const Color(0xFFE5604F),
+      sucesso: escuro ? Cores.livre : Cores.ativo,
+      fonte: (t, {peso, cor}) => _mono(t, peso ?? FontWeight.w500, cor ?? p.texto),
     );
   }
 

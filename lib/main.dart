@@ -12,6 +12,7 @@ import 'auth_service.dart';
 import 'banner_aviso.dart';
 import 'garagem_controller.dart';
 import 'historico.dart';
+import 'localizacao.dart';
 import 'login_page.dart';
 import 'meu_carro.dart';
 import 'mobile/mobile_app.dart' show MobileApp;
@@ -67,6 +68,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
   final _historico = HistoricoOcupacao();
+  final _campus = LocalizacaoCampus();
+  bool _campusIniciado = false;
   Timer? _amostragem;
   NivelAlerta? _nivelAnterior;
   bool _splash = true;
@@ -81,6 +84,13 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
     _tema.carregar();
     _meuCarro.carregar();
     _historico.carregar();
+    _notif.carregarPreferencias();
+    // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
+    _notif.motivoBloqueio = () => motivoSemAviso(
+          carro: _meuCarro,
+          campus: _campus,
+          somenteNaFaculdade: _notif.somenteNaFaculdade,
+        );
     // além das mudanças, registra a ocupação a cada 5 min (alimenta a previsão e o painel)
     _amostragem = Timer.periodic(const Duration(minutes: 5), (_) => _amostrar());
     _notif.aoChegar = (n) => mostrarBannerAviso(_mensageiro.currentState, n);
@@ -101,6 +111,10 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
 
   void _verificarAlertas() {
     if (!_app.logado) return;
+    if (!_campusIniciado) {
+      _campusIniciado = true; // pede a localização só depois do login
+      _campus.iniciar();
+    }
     _amostrar();
     final bloco = _app.blocoPrincipal;
     // vagas que acabaram de ser desocupadas (em qualquer nível)
@@ -136,6 +150,7 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
     _amostragem?.cancel();
     _meuCarro.dispose();
     _historico.dispose();
+    _campus.dispose();
     _garagem.removeListener(_verificarAlertas);
     _app.removeListener(_verificarAlertas);
     _tema.dispose();
@@ -180,6 +195,7 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
                         notif: _notif,
                         meuCarro: _meuCarro,
                         historico: _historico,
+                        campus: _campus,
                       )
                     : LoginPage(key: const ValueKey('login'), app: _app, semFirebase: widget.semFirebase),
               ),
