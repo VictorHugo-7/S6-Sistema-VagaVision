@@ -18,7 +18,7 @@ com login Google (Firebase) e cena 3D desenhada com `CustomPainter`.
 
 ```bash
 flutter pub get
-flutter run                  # escolha o dispositivo; ou: -d chrome | -d <id do celular>
+flutter run -d web-server --web-port=5000               #sempre rodar na porta 5000
 ```
 
 O login usa o Firebase: veja `FIREBASE_SETUP.md` (ativar o Google no Firebase Authentication, SHA-1 no Android).
