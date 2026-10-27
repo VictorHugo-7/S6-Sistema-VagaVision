@@ -1,10 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuthException;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:garagem_central/main.dart';
+import 'package:garagem_central/auth_service.dart';
 import 'package:garagem_central/garagem_controller.dart';
 import 'package:garagem_central/historico.dart';
+import 'package:garagem_central/localizacao.dart';
+import 'package:garagem_central/login_email.dart';
 import 'package:garagem_central/meu_carro.dart';
 import 'package:garagem_central/notificacoes.dart';
 import 'package:garagem_central/painel_analise.dart';
@@ -156,6 +160,181 @@ void main() {
     await tester.tap(find.text('Dom').first);
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  test('localização: distância e estados dentro/fora/sem permissão', () async {
+    expect(LocalizacaoCampus.distanciaEntre(0, 0, 0, 0), 0);
+    // 0,001° de latitude ≈ 111 m
+    expect(LocalizacaoCampus.distanciaEntre(-23.647955, -46.574245, -23.646955, -46.574245), closeTo(111, 2));
+
+    var leitura = const LeituraLocal(latitude: -23.6480, longitude: -46.5742);
+    final c = LocalizacaoCampus(leitor: (_) async => leitura);
+    expect(c.estado, EstadoLocal.desconhecido);
+    await c.verificar();
+    expect(c.estado, EstadoLocal.naFaculdade);
+    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63); // centro de São Paulo
+    await c.verificar();
+    expect(c.estado, EstadoLocal.foraDaFaculdade);
+    expect(c.distanciaMetros!, greaterThan(10000));
+    leitura = const LeituraLocal(problema: EstadoLocal.semPermissao);
+    await c.verificar();
+    expect(c.estado, EstadoLocal.semPermissao);
+    expect(precisaAtivarLocalizacao(c), isTrue);
+    c.dispose();
+  });
+
+  test('avisos: pausam com o carro estacionado e fora da faculdade', () async {
+    SharedPreferences.setMockInitialValues({});
+    final carro = MeuCarro();
+    var leitura = const LeituraLocal(latitude: -23.6480, longitude: -46.5742);
+    final campus = LocalizacaoCampus(leitor: (_) async => leitura);
+    final n = NotificacoesController();
+    n.motivoBloqueio = () => motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: n.somenteNaFaculdade);
+
+    // localização ainda desconhecida: com a chave ligada, não avisa
+    n.vagasDesocupadas('Bloco U', 1, ['A1']);
+    expect(n.itens, isEmpty);
+
+    await campus.verificar(); // na faculdade
+    n.vagasDesocupadas('Bloco U', 1, ['A1']);
+    expect(n.itens.length, 1);
+
+    carro.marcar(0, 'A2'); // carro estacionado: pausa
+    n.vagasDesocupadas('Bloco U', 1, ['A3']);
+    expect(n.itens.length, 1);
+    expect(statusDosAvisos(carro: carro, campus: campus, somenteNaFaculdade: true), contains('avisos pausados'));
+    carro.limpar();
+
+    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63); // fora da faculdade
+    await campus.verificar();
+    n.vagasDesocupadas('Bloco U', 1, ['A4']);
+    expect(n.itens.length, 1);
+    expect(motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: true), 'Fora da faculdade');
+
+    n.definirSomenteNaFaculdade(false); // chave desligada: avisa em qualquer lugar
+    n.vagasDesocupadas('Bloco U', 1, ['A5']);
+    expect(n.itens.length, 2);
+    campus.dispose();
+  });
+
+  test('login por e-mail: validações e mensagens de erro do Firebase', () {
+    expect(ValidaLogin.email(''), isNotNull);
+    expect(ValidaLogin.email('abc'), isNotNull);
+    expect(ValidaLogin.email('a@b'), isNotNull);
+    expect(ValidaLogin.email(' aluno@maua.br '), isNull);
+    expect(ValidaLogin.senha(''), isNotNull);
+    expect(ValidaLogin.senha('12345'), isNotNull);
+    expect(ValidaLogin.senha('123456'), isNull);
+    expect(ValidaLogin.nome('  '), isNotNull);
+    expect(ValidaLogin.nome('Leo'), isNull);
+
+    String? msg(String code) => AuthService.traduzir(FirebaseAuthException(code: code));
+    expect(msg('invalid-credential'), contains('incorretos'));
+    expect(msg('wrong-password'), contains('incorretos'));
+    expect(msg('email-already-in-use'), contains('Já existe'));
+    expect(msg('weak-password'), contains('6 caracteres'));
+    expect(msg('invalid-email'), contains('inválido'));
+    expect(msg('too-many-requests'), contains('Muitas tentativas'));
+    expect(msg('operation-not-allowed'), contains('não está ativado'));
+    expect(msg('popup-closed-by-user'), isNull); // cancelar não é erro
+  });
+
+  test('lembrar de mim: padrão ligado, guarda a escolha e o e-mail', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect(await AuthService.lembrarAtivo(), isTrue);
+    await AuthService.definirLembrar(false);
+    expect(await AuthService.lembrarAtivo(), isFalse);
+    await AuthService.definirLembrar(true);
+    expect(await AuthService.lembrarAtivo(), isTrue);
+
+    expect(await AuthService.emailSalvo(), isNull);
+    await AuthService.lembrarEmail('  aluno@maua.br ');
+    expect(await AuthService.emailSalvo(), 'aluno@maua.br');
+    await AuthService.lembrarEmail(null);
+    expect(await AuthService.emailSalvo(), isNull);
+  });
+
+  testWidgets('caixa "Lembrar de mim" alterna ao tocar na linha', (tester) async {
+    var valor = true;
+    final estilo = EstiloLoginEmail(
+      texto: Colors.black,
+      suave: Colors.grey,
+      campo: Colors.white,
+      botao: Colors.blue,
+      erro: Colors.red,
+      sucesso: Colors.green,
+      fonte: (t, {peso, cor}) => TextStyle(fontSize: t, fontWeight: peso, color: cor),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: StatefulBuilder(
+          builder: (context, setState) => LembrarDeMim(
+            estilo: estilo,
+            valor: valor,
+            onChanged: (v) => setState(() => valor = v),
+          ),
+        ),
+      ),
+    ));
+    expect(find.text('Lembrar de mim neste dispositivo'), findsOneWidget);
+    await tester.tap(find.text('Lembrar de mim neste dispositivo'));
+    await tester.pump();
+    expect(valor, isFalse);
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    expect(valor, isTrue);
+  });
+
+  testWidgets('formulário de e-mail valida os campos e chama o login', (tester) async {
+    var chamadas = 0;
+    final estilo = EstiloLoginEmail(
+      texto: Colors.black,
+      suave: Colors.grey,
+      campo: Colors.white,
+      botao: Colors.blue,
+      erro: Colors.red,
+      sucesso: Colors.green,
+      fonte: (t, {peso, cor}) => TextStyle(fontSize: t, fontWeight: peso, color: cor),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(child: FormularioEmail(estilo: estilo, simulado: () => chamadas++)),
+      ),
+    ));
+    expect(find.text('Entrar com e-mail e senha'), findsOneWidget);
+    await tester.tap(find.text('Entrar com e-mail e senha'));
+    await tester.pump();
+
+    final botao = find.text('Entrar com e-mail').last; // o título vem antes, o botão depois
+    await tester.tap(botao);
+    await tester.pump();
+    expect(find.text('Digite seu e-mail.'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'E-mail'), 'abc');
+    await tester.tap(botao);
+    await tester.pump();
+    expect(find.textContaining('E-mail inválido'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'E-mail'), 'aluno@maua.br');
+    await tester.tap(botao);
+    await tester.pump();
+    expect(find.text('Digite sua senha.'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Senha'), '123');
+    await tester.tap(botao);
+    await tester.pump();
+    expect(find.textContaining('pelo menos 6'), findsOneWidget);
+    expect(chamadas, 0);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Senha'), 'abc123');
+    await tester.tap(botao);
+    await tester.pump();
+    expect(chamadas, 1);
+
+    // criar conta pede o nome
+    await tester.tap(find.text('Criar conta'));
+    await tester.pump();
+    expect(find.widgetWithText(TextField, 'Nome'), findsOneWidget);
   });
 
   test('quandoTexto', () {

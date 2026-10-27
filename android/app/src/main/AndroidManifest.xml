@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Necessária para o login Microsoft (Firebase) e para baixar as fontes -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Localização: os avisos de vaga só chegam a quem está na faculdade -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="VagaVision"
         android:name="${applicationName}"

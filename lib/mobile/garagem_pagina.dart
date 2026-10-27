@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../historico.dart';
+import '../localizacao.dart';
 import '../meu_carro.dart';
 import '../notificacoes.dart';
 import '../tema_controller.dart';
@@ -34,6 +35,7 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
   final _historico = HistoricoOcupacao();
+  final _campus = LocalizacaoCampus();
   Timer? _amostragem;
   late int _livresAntes = _controller.stats.livres;
   late int _nivelAntes = _controller.nivel;
@@ -44,6 +46,13 @@ class _GaragemPaginaState extends State<GaragemPagina> {
     _controller.addListener(_verificarAvisos);
     _meuCarro.carregar();
     _historico.carregar();
+    // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
+    widget.notif.motivoBloqueio = () => motivoSemAviso(
+          carro: _meuCarro,
+          campus: _campus,
+          somenteNaFaculdade: widget.notif.somenteNaFaculdade,
+        );
+    _campus.iniciar(); // pede a localização ao entrar no mapa (já logado)
     // além das mudanças, registra a ocupação a cada 5 min (alimenta a previsão e o painel)
     _amostragem = Timer.periodic(const Duration(minutes: 5), (_) => _amostrar());
     _amostrar();
@@ -87,8 +96,10 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   void dispose() {
     _amostragem?.cancel();
     _controller.removeListener(_verificarAvisos);
+    widget.notif.motivoBloqueio = null;
     _meuCarro.dispose();
     _historico.dispose();
+    _campus.dispose();
     _controller.dispose();
     _alertas.dispose();
     super.dispose();
@@ -107,8 +118,11 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   }
 
   void _abrirAvisos() {
+    _campus.verificar(); // atualiza a localização ao abrir os avisos
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => AvisosPagina(notif: widget.notif)),
+      MaterialPageRoute<void>(
+        builder: (_) => AvisosPagina(notif: widget.notif, campus: _campus, meuCarro: _meuCarro),
+      ),
     );
   }
 

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../localizacao.dart';
+import '../meu_carro.dart';
 import '../notificacoes.dart';
 import 'quadro_tela.dart';
 import 'theme.dart';
 
 /// Tela "Avisos": histórico das notificações (vaga liberada, bloco lotado...).
 class AvisosPagina extends StatelessWidget {
-  const AvisosPagina({super.key, required this.notif});
+  const AvisosPagina({super.key, required this.notif, required this.campus, required this.meuCarro});
 
   final NotificacoesController notif;
+  final LocalizacaoCampus campus;
+  final MeuCarro meuCarro;
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +33,12 @@ class AvisosPagina extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ListenableBuilder(
-            listenable: notif,
+            listenable: Listenable.merge([notif, campus, meuCarro]),
             builder: (context, _) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
+              child: Column(
+                children: [
+              Container(
                 padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
                 decoration: BoxDecoration(color: p.campo, borderRadius: BorderRadius.circular(12)),
                 child: Row(
@@ -51,6 +57,12 @@ class AvisosPagina extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 6),
+              _InterruptorFaculdade(notif: notif),
+              const SizedBox(height: 6),
+              _StatusAvisos(notif: notif, campus: campus, meuCarro: meuCarro),
+                ],
               ),
             ),
           ),
@@ -182,6 +194,82 @@ class _LinhaAviso extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chave "Só avisar quando eu estiver na faculdade".
+class _InterruptorFaculdade extends StatelessWidget {
+  const _InterruptorFaculdade({required this.notif});
+
+  final NotificacoesController notif;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.paleta;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
+      decoration: BoxDecoration(color: p.campo, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.location_on_rounded, color: Cores.ativo, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Só avisar quando eu estiver na faculdade', style: textoMono(12, peso: FontWeight.w700)),
+          ),
+          Switch(
+            value: notif.somenteNaFaculdade,
+            activeThumbColor: Colors.white,
+            activeTrackColor: Cores.ativo,
+            onChanged: notif.definirSomenteNaFaculdade,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Explica por que os avisos estão (ou não) chegando agora, com botão para ligar a localização.
+class _StatusAvisos extends StatelessWidget {
+  const _StatusAvisos({required this.notif, required this.campus, required this.meuCarro});
+
+  final NotificacoesController notif;
+  final LocalizacaoCampus campus;
+  final MeuCarro meuCarro;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.paleta;
+    final precisaLocalizacao = notif.somenteNaFaculdade && !meuCarro.estacionado && precisaAtivarLocalizacao(campus);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              statusDosAvisos(carro: meuCarro, campus: campus, somenteNaFaculdade: notif.somenteNaFaculdade),
+              style: textoMono(11, peso: FontWeight.w500, cor: p.textoSuave),
+            ),
+            if (precisaLocalizacao) ...[
+              const SizedBox(height: 8),
+              Material(
+                color: Cores.azulBotao,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => campus.verificar(pedirPermissao: true),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Text('Ativar localização', style: textoMono(12, peso: FontWeight.w700, cor: Colors.white)),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
