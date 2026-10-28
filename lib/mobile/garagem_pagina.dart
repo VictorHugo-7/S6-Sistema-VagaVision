@@ -6,6 +6,7 @@ import '../historico.dart';
 import '../localizacao.dart';
 import '../meu_carro.dart';
 import '../notificacoes.dart';
+import '../ocupacao_ao_vivo.dart';
 import '../tema_controller.dart';
 import '../widget_inicial.dart';
 import 'alertas_controller.dart';
@@ -35,6 +36,9 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
   final _historico = HistoricoOcupacao();
+  // ocupação detectada pela câmera (visao/detectar_ocupacao.py --firebase); esta tela só
+  // aparece com usuário logado, que é o que as regras do Firestore exigem
+  late final _aoVivo = OcupacaoAoVivo(_controller.aplicarLeitura);
   final _campus = LocalizacaoCampus();
   Timer? _amostragem;
   late int _livresAntes = _controller.stats.livres;
@@ -44,6 +48,7 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   void initState() {
     super.initState();
     _controller.addListener(_verificarAvisos);
+    _aoVivo.iniciar();
     _meuCarro.carregar();
     _historico.carregar();
     // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
@@ -95,6 +100,7 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   @override
   void dispose() {
     _amostragem?.cancel();
+    _aoVivo.parar();
     _controller.removeListener(_verificarAvisos);
     widget.notif.motivoBloqueio = null;
     _meuCarro.dispose();

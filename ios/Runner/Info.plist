@@ -68,5 +68,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Mostrar o vídeo da câmera do estacionamento, enviado pelo computador na mesma rede Wi-Fi.</string>
 </dict>
 </plist>
