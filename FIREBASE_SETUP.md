@@ -1,4 +1,4 @@
-# Login com Google + banco de dados (Firebase)
+# Login com Google ou e-mail/senha + banco de dados (Firebase)
 
 O app usa **Firebase Authentication** (provedor Google) para o login e o **Cloud Firestore**
 como banco de dados (coleção `usuarios`, um documento por usuário logado).
@@ -13,6 +13,9 @@ Não precisa registrar nada no Azure/Microsoft: o Google é ativado direto no Fi
 1. https://console.firebase.google.com → abra o projeto (`vagavision-13295`).
 2. **Build → Authentication → Sign-in method → Google → Enable**.
    Escolha um **e-mail de suporte do projeto** e clique em **Salvar**.
+2b. **Para o login por e-mail e senha:** na mesma tela (Sign-in method) abra **E-mail/senha** e ative só
+   o primeiro botão ("Ativar"), sem o "link por e-mail". Pronto: o Firebase guarda e-mail e senha
+   (a senha protegida, nunca em texto) e envia o e-mail de "esqueci minha senha". Não precisa criar tabela nenhuma.
 3. **Build → Firestore Database → Create database** (se ainda não existir) e, na aba **Rules**,
    cole o conteúdo de `firestore.rules` e publique. As regras também liberam a leitura da coleção
    `ocupacao` (vagas detectadas pela câmera, ver `visao/README.md`) para usuários logados.

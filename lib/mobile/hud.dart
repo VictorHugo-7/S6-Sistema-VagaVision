@@ -485,8 +485,8 @@ class _FaixaCarro extends StatelessWidget {
 
   void _jaSai() {
     final v = meuCarro.estacionado ? controller.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    if (v != null) controller.liberarVaga(v); // ainda "estacionado": a própria saída não gera aviso
     meuCarro.limpar();
-    if (v != null) controller.liberarVaga(v);
   }
 
   @override

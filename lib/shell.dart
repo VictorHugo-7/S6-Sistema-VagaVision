@@ -6,6 +6,7 @@ import 'avisos_page.dart';
 import 'garagem_controller.dart';
 import 'logo.dart';
 import 'historico.dart';
+import 'localizacao.dart';
 import 'mapa_page.dart';
 import 'meu_carro.dart';
 import 'painel_page.dart';
@@ -63,6 +64,7 @@ class Shell extends StatefulWidget {
     required this.notif,
     required this.meuCarro,
     required this.historico,
+    required this.campus,
   });
 
   final AppState app;
@@ -71,6 +73,7 @@ class Shell extends StatefulWidget {
   final NotificacoesController notif;
   final MeuCarro meuCarro;
   final HistoricoOcupacao historico;
+  final LocalizacaoCampus campus;
 
   @override
   State<Shell> createState() => _ShellState();
@@ -80,10 +83,13 @@ class _ShellState extends State<Shell> {
   int _aba = 0; // 0 = Mapa, 1 = Alertas, 2 = Avisos, 3 = Painel
   String? _blocoEditando;
 
-  void _trocarAba(int i) => setState(() {
-        _aba = i;
-        _blocoEditando = null;
-      });
+  void _trocarAba(int i) {
+    if (i == _abaAvisos) widget.campus.verificar(); // atualiza a localização ao abrir os avisos
+    setState(() {
+      _aba = i;
+      _blocoEditando = null;
+    });
+  }
 
   Widget _conteudo({required bool navegacaoLateral, double reservaInferior = 8}) {
     if (_aba == 0) {
@@ -96,7 +102,12 @@ class _ShellState extends State<Shell> {
         reservaInferior: reservaInferior,
       );
     }
-    if (_aba == _abaAvisos) return AvisosPage(notif: widget.notif, onVoltar: () => _trocarAba(0));
+    if (_aba == _abaAvisos) return AvisosPage(
+        notif: widget.notif,
+        campus: widget.campus,
+        meuCarro: widget.meuCarro,
+        onVoltar: () => _trocarAba(0),
+      );
     if (_aba == _abaPainel) {
       return PainelPage(historico: widget.historico, garagem: widget.garagem, onVoltar: () => _trocarAba(0));
     }

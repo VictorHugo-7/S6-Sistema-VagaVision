@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 
+import 'localizacao.dart';
+import 'meu_carro.dart';
 import 'notificacoes.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 /// Histórico de avisos (alertas de vagas). Os avisos novos também aparecem como banner na hora.
 class AvisosPage extends StatelessWidget {
-  const AvisosPage({super.key, required this.notif, required this.onVoltar});
+  const AvisosPage({super.key, required this.notif, required this.campus, required this.meuCarro, required this.onVoltar});
 
   final NotificacoesController notif;
+  final LocalizacaoCampus campus;
+  final MeuCarro meuCarro;
   final VoidCallback onVoltar;
 
   @override
   Widget build(BuildContext context) {
     return PaginaFolha(
       child: ListenableBuilder(
-        listenable: notif,
+        listenable: Listenable.merge([notif, campus, meuCarro]),
         builder: (context, _) {
           final itens = notif.itens;
           return FolhaBranca(
@@ -29,6 +33,10 @@ class AvisosPage extends StatelessWidget {
             ),
             filhos: [
               _InterruptorVagaLivre(notif: notif),
+              const SizedBox(height: 8),
+              _InterruptorFaculdade(notif: notif),
+              const SizedBox(height: 6),
+              _StatusAvisos(notif: notif, campus: campus, meuCarro: meuCarro),
               const SizedBox(height: 8),
               if (itens.isEmpty)
                 Padding(
@@ -130,6 +138,74 @@ class _InterruptorVagaLivre extends StatelessWidget {
             activeTrackColor: Cores.ativo,
             onChanged: notif.definirAvisarVagaLivre,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chave "Só avisar quando eu estiver na faculdade".
+class _InterruptorFaculdade extends StatelessWidget {
+  const _InterruptorFaculdade({required this.notif});
+
+  final NotificacoesController notif;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.paleta;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+      decoration: BoxDecoration(color: p.campo, borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          Icon(Icons.location_on_rounded, color: Cores.ativo, size: 22),
+          const SizedBox(width: 10),
+          Expanded(child: Text('Só avisar quando eu estiver na faculdade', style: mono(13, peso: FontWeight.w700))),
+          Switch(
+            value: notif.somenteNaFaculdade,
+            activeThumbColor: Colors.white,
+            activeTrackColor: Cores.ativo,
+            onChanged: notif.definirSomenteNaFaculdade,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Explica por que os avisos estão (ou não) chegando agora, com botão para ligar a localização.
+class _StatusAvisos extends StatelessWidget {
+  const _StatusAvisos({required this.notif, required this.campus, required this.meuCarro});
+
+  final NotificacoesController notif;
+  final LocalizacaoCampus campus;
+  final MeuCarro meuCarro;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.paleta;
+    final precisaLocalizacao = notif.somenteNaFaculdade && !meuCarro.estacionado && precisaAtivarLocalizacao(campus);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            statusDosAvisos(carro: meuCarro, campus: campus, somenteNaFaculdade: notif.somenteNaFaculdade),
+            style: mono(12, cor: p.textoSuave),
+          ),
+          if (precisaLocalizacao) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: BotaoAzul(
+                texto: 'Ativar localização',
+                altura: 40,
+                pequeno: true,
+                onTap: () => campus.verificar(pedirPermissao: true),
+              ),
+            ),
+          ],
         ],
       ),
     );

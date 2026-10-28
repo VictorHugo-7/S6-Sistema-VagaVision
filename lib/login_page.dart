@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'auth_service.dart';
+import 'login_email.dart';
 import 'logo.dart';
 import 'theme.dart';
 
@@ -38,7 +39,16 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _carregando = false;
+  bool _lembrar = true;
   String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.lembrarAtivo().then((v) {
+      if (mounted) setState(() => _lembrar = v);
+    });
+  }
 
   Future<void> _entrar() async {
     if (_carregando) return;
@@ -51,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
       _erro = null;
     });
     try {
-      await AuthService.entrarComGoogle();
+      await AuthService.entrarComGoogle(lembrar: _lembrar);
       // Sucesso: o listener em main.dart atualiza o AppState e o app troca para o mapa.
     } on ErroLogin catch (e) {
       if (mounted) setState(() => _erro = e.mensagem);
@@ -60,6 +70,20 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
+  }
+
+  EstiloLoginEmail _estiloEmail(BuildContext context) {
+    final p = context.paleta;
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    return EstiloLoginEmail(
+      texto: p.texto,
+      suave: p.textoSuave,
+      campo: escuro ? p.campo : Colors.white,
+      botao: Cores.azulBotao,
+      erro: const Color(0xFFE5604F),
+      sucesso: escuro ? Cores.livre : Cores.ativo,
+      fonte: (t, {peso, cor}) => mono(t, peso: peso ?? FontWeight.w500, cor: cor),
+    );
   }
 
   Widget _acoes(BuildContext context) {
@@ -100,7 +124,15 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        Center(
+          child: LembrarDeMim(
+            estilo: _estiloEmail(context),
+            valor: _lembrar,
+            onChanged: (v) => setState(() => _lembrar = v),
+          ),
+        ),
+        const SizedBox(height: 8),
         ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: Center(
@@ -110,6 +142,11 @@ class _LoginPageState extends State<LoginPage> {
               style: mono(14, cor: _erro == null ? context.paleta.textoSuave : const Color(0xFFE5604F)),
             ),
           ),
+        ),
+        FormularioEmail(
+          estilo: _estiloEmail(context),
+          simulado: widget.semFirebase ? () => widget.app.entrar('Visitante') : null,
+          lembrar: _lembrar,
         ),
       ],
     );
