@@ -4,7 +4,9 @@
     <application
         android:label="VagaVision"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: o vídeo da câmera vem do detector na rede local, por http -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

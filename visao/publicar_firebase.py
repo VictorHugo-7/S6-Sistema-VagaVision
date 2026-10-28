@@ -11,7 +11,8 @@ Documento gravado (um por bloco + nível), coleção "ocupacao":
         "nivel": 1,
         "fonte": "teste_carros.mp4",
         "atualizadoEm": <hora do servidor>,
-        "vagas": {"A1": {"ocupada": true, "desde": <hora>}, "A2": {...}, ...}
+        "vagas": {"A1": {"ocupada": true, "desde": <hora>}, "A2": {...}, ...},
+        "controle": "http://192.168.0.10:8765"   # controle remoto do vídeo (controle_remoto.py)
     }
 
 O envio roda numa thread separada: o vídeo não trava esperando a rede. Só o estado mais
@@ -67,11 +68,12 @@ def iniciar_firestore(chave):
 
 
 class PublicadorFirebase:
-    def __init__(self, chave, bloco, nivel, fonte, batimento=30.0):
+    def __init__(self, chave, bloco, nivel, fonte, batimento=30.0, extras=None):
         self.cliente, self._hora_servidor = iniciar_firestore(chave)
         self.bloco, self.nivel, self.fonte = bloco, nivel, fonte
         self.documento = self.cliente.collection(COLECAO).document(id_documento(bloco, nivel))
         self.batimento = batimento
+        self.extras = extras or {}  # campos fixos a mais no documento
         self._estado = None
         self._novo = threading.Event()
         self._parar = threading.Event()
@@ -101,6 +103,7 @@ class PublicadorFirebase:
             "fonte": self.fonte,
             "atualizadoEm": self._hora_servidor,
             "vagas": self._estado,
+            **self.extras,
         })
 
     def _rodar(self):
