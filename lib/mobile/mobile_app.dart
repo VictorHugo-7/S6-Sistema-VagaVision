@@ -32,6 +32,7 @@ class _MobileAppState extends State<MobileApp> {
   void initState() {
     super.initState();
     _tema.carregar();
+    _notif.carregarPreferencias();
     _notif.aoChegar = (n) => mostrarBannerAviso(_mensageiro.currentState, n);
   }
 

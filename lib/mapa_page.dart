@@ -227,8 +227,8 @@ class _FaixaEstado extends StatelessWidget {
   /// "Já saí": desmarca e libera a vaga.
   void _jaSai() {
     final v = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    if (v != null) garagem.liberarVaga(v); // ainda "estacionado": a própria saída não gera aviso
     meuCarro.limpar();
-    if (v != null) garagem.liberarVaga(v);
   }
 
   @override

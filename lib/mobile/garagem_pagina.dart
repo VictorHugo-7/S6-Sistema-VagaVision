@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../historico.dart';
+import '../localizacao.dart';
 import '../meu_carro.dart';
 import '../notificacoes.dart';
 import '../ocupacao_ao_vivo.dart';
@@ -38,6 +39,7 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   // ocupação detectada pela câmera (visao/detectar_ocupacao.py --firebase); esta tela só
   // aparece com usuário logado, que é o que as regras do Firestore exigem
   late final _aoVivo = OcupacaoAoVivo(_controller.aplicarLeitura);
+  final _campus = LocalizacaoCampus();
   Timer? _amostragem;
   late int _livresAntes = _controller.stats.livres;
   late int _nivelAntes = _controller.nivel;
@@ -49,6 +51,13 @@ class _GaragemPaginaState extends State<GaragemPagina> {
     _aoVivo.iniciar();
     _meuCarro.carregar();
     _historico.carregar();
+    // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
+    widget.notif.motivoBloqueio = () => motivoSemAviso(
+          carro: _meuCarro,
+          campus: _campus,
+          somenteNaFaculdade: widget.notif.somenteNaFaculdade,
+        );
+    _campus.iniciar(); // pede a localização ao entrar no mapa (já logado)
     // além das mudanças, registra a ocupação a cada 5 min (alimenta a previsão e o painel)
     _amostragem = Timer.periodic(const Duration(minutes: 5), (_) => _amostrar());
     _amostrar();
@@ -93,8 +102,10 @@ class _GaragemPaginaState extends State<GaragemPagina> {
     _amostragem?.cancel();
     _aoVivo.parar();
     _controller.removeListener(_verificarAvisos);
+    widget.notif.motivoBloqueio = null;
     _meuCarro.dispose();
     _historico.dispose();
+    _campus.dispose();
     _controller.dispose();
     _alertas.dispose();
     super.dispose();
@@ -113,8 +124,11 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   }
 
   void _abrirAvisos() {
+    _campus.verificar(); // atualiza a localização ao abrir os avisos
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => AvisosPagina(notif: widget.notif)),
+      MaterialPageRoute<void>(
+        builder: (_) => AvisosPagina(notif: widget.notif, campus: _campus, meuCarro: _meuCarro),
+      ),
     );
   }
 
