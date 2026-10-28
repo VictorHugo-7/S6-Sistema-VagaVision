@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../meu_carro.dart';
 import '../notificacoes.dart';
+import '../ocupacao_ao_vivo.dart';
 import '../tema_controller.dart';
 import 'garagem_controller.dart';
 import 'quadro_tela.dart';
@@ -100,8 +101,18 @@ class Hud extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _BotaoAcao(texto: 'Sortear ocupação', principal: true, onTap: controller.sortear),
-                      _BotaoAcao(texto: 'Liberar todas as vagas', onTap: controller.liberar),
+                      // nível com câmera: a ocupação vem do vídeo, então não há sorteio
+                      if (controller.leituraAtual case final leitura?)
+                        SeloCamera(
+                          leitura: leitura,
+                          estilo: textoMono(12, peso: FontWeight.w700, cor: context.paleta.texto),
+                          fundo: context.paleta.superficie,
+                          borda: context.paleta.borda,
+                        )
+                      else ...[
+                        _BotaoAcao(texto: 'Sortear ocupação', principal: true, onTap: controller.sortear),
+                        _BotaoAcao(texto: 'Liberar todas as vagas', onTap: controller.liberar),
+                      ],
                     ],
                   ),
                 ],

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../ocupacao_ao_vivo.dart';
 import 'projecao.dart';
 import 'theme.dart';
 
@@ -72,10 +73,16 @@ class GaragemController extends ChangeNotifier {
   double _alvoX = 0, _alvoZ = 0;
   double _zoomOrto = 1;
 
+  /// Última leitura da câmera de cada nível (pelo índice). Níveis sem câmera seguem simulados.
+  final Map<int, LeituraNivel> aoVivo = {};
+
   Modo get modo => _modo;
   int get nivel => _nivel;
   Vaga? get selecionada => _selecionada;
   List<Vaga> get vagas => niveis[_nivel];
+
+  /// Leitura da câmera do nível exibido, ou `null` se ele não tem câmera.
+  LeituraNivel? get leituraAtual => aoVivo[_nivel];
 
   Estatisticas get stats {
     final ocupadas = vagas.where((v) => v.ocupada).length;
@@ -134,6 +141,7 @@ class GaragemController extends ChangeNotifier {
   }
 
   void sortear() {
+    if (leituraAtual != null) return; // quem decide é a câmera
     for (final v in vagas) {
       _definirOcupacao(v, _rng.nextDouble() < 0.62);
     }
@@ -142,10 +150,29 @@ class GaragemController extends ChangeNotifier {
   }
 
   void liberar() {
+    if (leituraAtual != null) return;
     for (final v in vagas) {
       v.ocupada = false;
     }
     _selecionada = null;
+    notifyListeners();
+  }
+
+  /// `true` se a vaga fica num nível com câmera.
+  bool _naCamera(Vaga vaga) => aoVivo.keys.any((n) => niveis[n].contains(vaga));
+
+  /// Aplica a ocupação detectada pela câmera (ver `OcupacaoAoVivo`).
+  void aplicarLeitura(LeituraNivel leitura) {
+    if (leitura.nivel >= niveis.length) return;
+    aoVivo[leitura.nivel] = leitura;
+    final agora = DateTime.now();
+    for (final v in niveis[leitura.nivel]) {
+      final l = leitura.vagas[v.code];
+      if (l == null) continue;
+      v.ocupada = l.ocupada;
+      final desde = l.desde;
+      if (l.ocupada) v.minutosOcupada = desde == null ? 0 : math.max(0, agora.difference(desde).inMinutes);
+    }
     notifyListeners();
   }
 
@@ -160,7 +187,7 @@ class GaragemController extends ChangeNotifier {
 
   /// Marca a vaga como ocupada (o usuário estacionou nela).
   void ocupar(Vaga vaga) {
-    if (vaga.ocupada) return;
+    if (vaga.ocupada || _naCamera(vaga)) return; // com câmera, a ocupação vem dela
     vaga.ocupada = true;
     vaga.minutosOcupada = 0;
     notifyListeners();
@@ -168,7 +195,7 @@ class GaragemController extends ChangeNotifier {
 
   /// Libera a vaga (o usuário saiu).
   void liberarVaga(Vaga vaga) {
-    if (!vaga.ocupada) return;
+    if (!vaga.ocupada || _naCamera(vaga)) return;
     vaga.ocupada = false;
     notifyListeners();
   }
@@ -269,7 +296,8 @@ class GaragemController extends ChangeNotifier {
     final hz = raio.origem.z + raio.direcao.z * t;
     for (final v in vagas) {
       if ((hx - v.x).abs() <= ConfigPatio.vagaW / 2 && (hz - v.z).abs() <= ConfigPatio.vagaD / 2) {
-        _definirOcupacao(v, !v.ocupada);
+        // com câmera, o toque só seleciona (a ocupação vem do vídeo)
+        if (leituraAtual == null) _definirOcupacao(v, !v.ocupada);
         _selecionada = v;
         notifyListeners();
         return;
