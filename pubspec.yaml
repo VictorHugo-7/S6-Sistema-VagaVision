@@ -23,5 +23,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/imagem_estacionamento_2.svg
+    - assets/mapa_modelo_construcoes.svg
     - google_fonts/

@@ -34,6 +34,23 @@ class Estatisticas {
   int get pctOcupado => total == 0 ? 0 : (ocupadas / total * 100).round();
 }
 
+/// Calibração das vagas no mapa 2D (assets/mapa_modelo_construcoes.svg, viewBox 577×457).
+///
+/// Posição, rotação e escala do bloco de vagas em coordenadas do SVG: o bloco fica
+/// "colado" no mapa e não escorrega com zoom ou arraste. Medido direto no SVG: faixa
+/// diagonal ao lado do Bloco U, eixo a -131.2°, ~21.9 px de largura.
+class VagasSvg {
+  /// Centro do bloco de vagas, em fração do SVG (x/largura, y/altura).
+  static const centro = Offset(0.45998, 0.46121);
+
+  /// Rotação do bloco de vagas, em graus (alinhada à faixa).
+  static const anguloGraus = -131.19;
+
+  /// Unidades do SVG por metro do pátio, como fração da largura do SVG (≈ 1.45 px/m:
+  /// as 2 fileiras + canteiro do ConfigPatio ocupam ~20 px dos ~21.9 px da faixa).
+  static const escala = 0.002512;
+}
+
 /// Estado da garagem (vagas, nível, modo) e da câmera orbital / pan 2D.
 class GaragemController extends ChangeNotifier {
   GaragemController() {
@@ -78,6 +95,13 @@ class GaragemController extends ChangeNotifier {
   double _phi = 0.55, _phiAlvo = _phiPadrao;
   double _alvoX = 0, _alvoZ = 0;
   double _zoomOrto = 1;
+
+  // mapa 2D (coordenadas em unidades do SVG, como um mapa: centro + zoom)
+  static const _zoom2dMin = 1.0;
+  static const _zoom2dMax = 8.0;
+  Size _svg = const Size(577, 457); // viewBox do mapa_modelo_construcoes.svg
+  double _zoom2d = 1;
+  Offset _centro2d = const Offset(577 / 2, 457 / 2);
 
   Modo get modo => _modo;
   int get nivel => _nivel;
@@ -126,6 +150,8 @@ class GaragemController extends ChangeNotifier {
     _alvoZ = 0;
     if (m == Modo.d2) {
       _zoomOrto = 1;
+      _zoom2d = 1;
+      _centro2d = _svg.center(Offset.zero);
     } else {
       _raioAlvo = _raioPadrao;
       _thetaAlvo = _thetaPadrao;
@@ -202,26 +228,85 @@ class GaragemController extends ChangeNotifier {
       _thetaAlvo -= dx * 0.006;
       _phiAlvo = (_phiAlvo - dy * 0.006).clamp(_phiMin, _phiMax);
     } else {
-      final porPixel = 2 * _meiaAlturaOrto(tela.width / tela.height) / tela.height;
-      // limita o arrasto para o mapa nunca sair totalmente da tela
-      _alvoX = (_alvoX - dx * porPixel).clamp(-ConfigPatio.quadroMeiaLargura, ConfigPatio.quadroMeiaLargura);
-      _alvoZ = (_alvoZ - dy * porPixel).clamp(-ConfigPatio.quadroMeiaAltura, ConfigPatio.quadroMeiaAltura);
+      // o mapa acompanha o dedo 1:1, como num app de mapas
+      if (tela.isEmpty) return;
+      _centro2d = _limitarCentro(_centro2d - Offset(dx, dy) / escala2d(tela));
     }
   }
 
   /// [fator] > 1 aproxima, < 1 afasta (pinça ou roda do mouse).
-  void zoom(double fator) {
+  /// No 2D, [foco] (posição na tela) fica parado durante o zoom, como num mapa.
+  void zoom(double fator, {Offset? foco, Size? tela}) {
     if (_modo == Modo.d3) {
       _raioAlvo = (_raioAlvo / fator).clamp(_raioMin, _raioMax);
-    } else {
-      _zoomOrto = (_zoomOrto * fator).clamp(0.5, 3.2);
+      return;
     }
+    final novo = (_zoom2d * fator).clamp(_zoom2dMin, _zoom2dMax);
+    if (foco == null || tela == null || tela.isEmpty) {
+      _zoom2d = novo;
+      return;
+    }
+    final pontoSvg = telaParaSvg(foco, tela); // ponto do mapa sob o dedo/cursor
+    _zoom2d = novo;
+    _centro2d = _limitarCentro(pontoSvg - (foco - tela.center(Offset.zero)) / escala2d(tela));
+  }
+
+  // ---------- mapa 2D (SVG) ----------
+
+  /// Chamado pela cena quando o SVG termina de carregar.
+  void definirTamanhoSvg(Size s) {
+    if (s.isEmpty || s == _svg) return;
+    _centro2d = Offset(_centro2d.dx / _svg.width * s.width, _centro2d.dy / _svg.height * s.height);
+    _svg = s;
+  }
+
+  /// Pixels de tela por unidade do SVG (zoom 1 = SVG inteiro cabendo na tela).
+  double escala2d(Size tela) =>
+      math.min(tela.width / _svg.width, tela.height / _svg.height) * 0.96 * _zoom2d;
+
+  /// Onde o canto (0,0) do SVG fica na tela.
+  Offset origem2d(Size tela) => tela.center(Offset.zero) - _centro2d * escala2d(tela);
+
+  Offset telaParaSvg(Offset p, Size tela) => _centro2d + (p - tela.center(Offset.zero)) / escala2d(tela);
+
+  /// Mantém o centro da vista dentro do SVG: o mapa nunca some da tela.
+  Offset _limitarCentro(Offset c) => Offset(c.dx.clamp(0.0, _svg.width), c.dy.clamp(0.0, _svg.height));
+
+  /// Centro do bloco de vagas no SVG.
+  Offset get centroVagas2d => Offset(VagasSvg.centro.dx * _svg.width, VagasSvg.centro.dy * _svg.height);
+
+  /// Rotação do bloco de vagas (radianos).
+  double get angulo2d => VagasSvg.anguloGraus * math.pi / 180;
+
+  /// Unidades do SVG por metro do pátio.
+  double get escalaVagas2d => VagasSvg.escala * _svg.width;
+
+  /// Desfaz a mesma transformação usada no desenho e acha a vaga tocada.
+  Vaga? _vagaNoSvg(Offset p) {
+    final d = (p - centroVagas2d) / escalaVagas2d;
+    final cs = math.cos(angulo2d), sn = math.sin(angulo2d);
+    final lx = d.dx * cs + d.dy * sn;
+    final lz = -d.dx * sn + d.dy * cs;
+    for (final v in vagas) {
+      if ((lx - v.x).abs() <= ConfigPatio.spotW / 2 && (lz - v.z).abs() <= ConfigPatio.vagaProf2d / 2) return v;
+    }
+    return null;
   }
 
   // ---------- seleção ----------
 
   /// Toque na tela: lança um raio e alterna a vaga atingida no plano do piso.
   void toque(Offset pos, Size tela) {
+    if (_modo == Modo.d2) {
+      // mesma transformação usada no desenho: o toque cai exatamente na vaga vista
+      if (tela.isEmpty) return;
+      final v = _vagaNoSvg(telaParaSvg(pos, tela));
+      if (v == null) return;
+      _definirOcupacao(v, !v.ocupada);
+      _selecionada = v;
+      notifyListeners();
+      return;
+    }
     final raio = camara(tela).raio(pos);
     if (raio.direcao.y.abs() < 1e-9) return;
     const alturaOverlay = 0.02;
