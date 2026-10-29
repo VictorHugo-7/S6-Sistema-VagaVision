@@ -14,9 +14,11 @@ import 'mobile/mobile_app.dart' show MobileApp;
 import 'shell.dart';
 import 'theme.dart';
 
-/// `true` pula o Firebase e usa um login simulado (só para ver o visual / testes).
-/// Na linha de comando: flutter run --dart-define=SEM_LOGIN=true
-const semLogin = bool.fromEnvironment('SEM_LOGIN', defaultValue: false);
+/// `true` pula o Firebase e entra direto como "Visitante" (sem tela de login).
+/// TEMPORÁRIO: o padrão está `true` para testar sem autenticar.
+/// Para voltar ao login real: troque para `defaultValue: false`
+/// (ou rode: flutter run --dart-define=SEM_LOGIN=false).
+const semLogin = bool.fromEnvironment('SEM_LOGIN', defaultValue: true);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +60,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
       // Mantém a sessão do Firebase (inclusive entre aberturas do app) em sincronia com o AppState.
       _sessao = AuthService.usuario.listen((u) => _app.definirUsuario(u == null ? null : (u.displayName ?? u.email ?? 'Usuário')));
     }
+    // sem login: entra direto como visitante (o mapa abre logo após a splash)
+    if (widget.semFirebase) _app.entrar('Visitante');
     Future.delayed(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _splash = false);
     });

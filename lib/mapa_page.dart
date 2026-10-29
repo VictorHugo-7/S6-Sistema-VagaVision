@@ -129,6 +129,15 @@ class _BotaoSair extends StatelessWidget {
   }
 }
 
+/// Cor da barra pela fração de vagas LIVRES (0 a 1).
+/// Com 12 vagas: 10–12 verde, 7–9 amarelo, 4–6 laranja, 0–3 vermelho.
+Color corDisponibilidade(double fracaoLivre) {
+  if (fracaoLivre > 0.75) return Cores.livre; // folgado
+  if (fracaoLivre > 0.5) return Cores.barra; // movimentado
+  if (fracaoLivre > 0.25) return Cores.alertaMedio; // enchendo
+  return Cores.ocupada; // quase lotado
+}
+
 class _CartaoVagas extends StatelessWidget {
   const _CartaoVagas({required this.bloco, required this.stats});
 
@@ -138,6 +147,7 @@ class _CartaoVagas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fracao = stats.total == 0 ? 0.0 : stats.livres / stats.total;
+    final cor = corDisponibilidade(fracao);
     return Semantics(
       label: 'Vagas disponíveis no $bloco: ${stats.livres} de ${stats.total}',
       excludeSemantics: true,
@@ -162,12 +172,18 @@ class _CartaoVagas extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
+                    // a barra cresce/encolhe e troca de cor suavemente
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: fracao,
+                      child: AnimatedFractionallySizedBox(
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeOutCubic,
+                        widthFactor: fracao.clamp(0.0, 1.0),
                         heightFactor: 1,
-                        child: const ColoredBox(color: Cores.barra),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          color: cor,
+                        ),
                       ),
                     ),
                     Text('${stats.livres}/${stats.total}', style: mono(13, peso: FontWeight.w700)),

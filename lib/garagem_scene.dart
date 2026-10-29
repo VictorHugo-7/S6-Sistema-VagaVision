@@ -1,15 +1,16 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'entorno_bloco_u.dart';
 import 'garagem_controller.dart';
 import 'projecao.dart';
 import 'theme.dart';
 
-/// Cena do bloco: vista 2D no estilo do Figma ou vista 3D com carros.
+/// Cena do bloco: vista 2D (mapa SVG do campus com as vagas) ou vista 3D com carros.
 /// Trata os gestos (arrastar, pinça/scroll para zoom, toque para selecionar).
 class GaragemScene extends StatefulWidget {
   const GaragemScene({super.key, required this.controller});
@@ -27,9 +28,16 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
   Size _tamanho = Size.zero;
   double _escalaAnterior = 1;
 
+  static const _caminhoSvg = 'assets/mapa_modelo_construcoes.svg';
+
+  /// Mapa 2D convertido em Picture: desenhado no mesmo canvas e com a mesma
+  /// transformação das vagas, então as duas camadas nunca se desalinham.
+  PictureInfo? _svg;
+
   @override
   void initState() {
     super.initState();
+    _carregarSvg();
     _ticker = createTicker((elapsed) {
       final dt = (elapsed - _ultimo).inMicroseconds / 1e6;
       _ultimo = elapsed;
@@ -38,10 +46,26 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
     })..start();
   }
 
+  Future<void> _carregarSvg() async {
+    try {
+      final info = await vg.loadPicture(const SvgAssetLoader(_caminhoSvg), null);
+      if (!mounted) {
+        info.picture.dispose();
+        return;
+      }
+      widget.controller.definirTamanhoSvg(info.size);
+      setState(() => _svg = info);
+    } catch (e) {
+      // SVG ausente/inválido: o 2D mostra só as vagas, o app não quebra
+      debugPrint('Não foi possível carregar $_caminhoSvg: $e');
+    }
+  }
+
   @override
   void dispose() {
     _ticker.dispose();
     _frame.dispose();
+    _svg?.picture.dispose();
     super.dispose();
   }
 
@@ -51,7 +75,10 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
       _tamanho = Size(c.maxWidth, c.maxHeight);
       return Listener(
         onPointerSignal: (e) {
-          if (e is PointerScrollEvent) widget.controller.zoom(math.exp(-e.scrollDelta.dy * 0.0015));
+          // roda do mouse: no 2D aproxima/afasta em torno do cursor
+          if (e is PointerScrollEvent) {
+            widget.controller.zoom(math.exp(-e.scrollDelta.dy * 0.0015), foco: e.localPosition, tela: _tamanho);
+          }
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -59,14 +86,16 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
           onScaleUpdate: (d) {
             final delta = d.scale / _escalaAnterior;
             _escalaAnterior = d.scale;
-            if (d.pointerCount >= 2 && delta != 1) widget.controller.zoom(delta);
+            // move junto com os dedos e depois aplica o zoom em torno do ponto entre eles
             widget.controller.arrastar(d.focalPointDelta.dx, d.focalPointDelta.dy, _tamanho);
+            // (com 1 dedo a escala é sempre 1; isto cobre pinça e trackpad)
+            if (delta != 1) widget.controller.zoom(delta, foco: d.localFocalPoint, tela: _tamanho);
           },
           onTapUp: (d) => widget.controller.toque(d.localPosition, _tamanho),
           child: ClipRect(
             child: CustomPaint(
               size: Size.infinite,
-              painter: _CenaPainter(widget.controller, _frame),
+              painter: _CenaPainter(widget.controller, _frame, svg: _svg),
             ),
           ),
         ),
@@ -83,9 +112,12 @@ class _Face {
 }
 
 class _CenaPainter extends CustomPainter {
-  _CenaPainter(this.c, Listenable repaint) : super(repaint: repaint);
+  _CenaPainter(this.c, Listenable repaint, {this.svg}) : super(repaint: repaint);
 
   final GaragemController c;
+
+  /// Mapa 2D já carregado (null enquanto carrega).
+  final PictureInfo? svg;
 
   static const _corLinha = Color(0xFFDEDFD8);
   static const _corVidro = Color(0xFF1B1E22);
@@ -104,38 +136,58 @@ class _CenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return; // evita NaN com área vazia
     canvas.drawRect(Offset.zero & size, Paint()..color = Cores.azul);
-    final cam = c.camara(size);
     if (c.modo == Modo.d2) {
-      _pintar2d(canvas, cam);
+      _pintar2d(canvas, size);
     } else {
-      _pintar3d(canvas, cam);
+      _pintar3d(canvas, c.camara(size));
     }
   }
 
-  // ---------- 2D (Figma): vagas lisas verde/vermelho, divisórias brancas e moldura ----------
+  // ---------- 2D: mapa SVG do campus + vagas (uma única transformação) ----------
 
-  void _pintar2d(Canvas canvas, Camara cam) {
-    final a = cam.ponto(const V3(-ConfigPatio.quadroMeiaLargura, 0, -ConfigPatio.quadroMeiaAltura));
-    final b = cam.ponto(const V3(ConfigPatio.quadroMeiaLargura, 0, ConfigPatio.quadroMeiaAltura));
-    if (a != null && b != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromPoints(a, b), const Radius.circular(12)),
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5,
-      );
-    }
+  void _pintar2d(Canvas canvas, Size size) {
+    final escala = c.escala2d(size);
+    final origem = c.origem2d(size);
+    canvas.save();
+    canvas.translate(origem.dx, origem.dy);
+    canvas.scale(escala);
 
+    // daqui para baixo tudo está em unidades do SVG
+    final info = svg;
+    if (info != null) canvas.drawPicture(info.picture);
+
+    // bloco de vagas (x/z do pátio em metros), posicionado, girado e escalado no SVG
+    final k = c.escalaVagas2d;
+    final cv = c.centroVagas2d;
+    canvas.translate(cv.dx, cv.dy);
+    canvas.rotate(c.angulo2d);
+    canvas.scale(k);
+
+    final px = 1 / (escala * k); // 1 pixel de tela, em metros do pátio
+    final contorno = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = Colors.white
+      ..strokeWidth = 2 * px;
+    final divisoria = Paint()..color = Colors.white;
     for (final v in c.vagas) {
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.vagaLarg2d, ConfigPatio.vagaProf2d, 0.02,
-          v.ocupada ? Cores.ocupada : Cores.livre);
+      final r = Rect.fromCenter(center: Offset(v.x, v.z), width: ConfigPatio.vagaLarg2d, height: ConfigPatio.vagaProf2d);
+      canvas.drawRect(r, Paint()..color = v.ocupada ? Cores.ocupada : Cores.livre);
+      if (identical(v, c.selecionada)) canvas.drawRect(r, contorno);
+      // divisória branca entre vagas vizinhas (como no 2D original)
       if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
-        _retanguloPlano(
-            canvas, cam, v.x + ConfigPatio.spotW / 2, v.z, 0.12, ConfigPatio.vagaProf2d, 0.03, Colors.white);
+        canvas.drawRect(
+          Rect.fromCenter(
+            center: Offset(v.x + ConfigPatio.spotW / 2, v.z),
+            width: math.max(0.12, px),
+            height: ConfigPatio.vagaProf2d,
+          ),
+          divisoria,
+        );
       }
     }
+    canvas.restore();
   }
 
   // ---------- 3D: trecho do Bloco U com o entorno real e carros nas vagas ocupadas ----------
@@ -287,5 +339,5 @@ class _CenaPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CenaPainter old) => old.c != c;
+  bool shouldRepaint(covariant _CenaPainter old) => old.c != c || old.svg != svg;
 }
