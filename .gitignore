@@ -46,34 +46,23 @@ coverage/
 # capturas geradas por test/screens_test.dart
 test/goldens/
 flutter_*.log
-FIREBASE_SETUP.md
 firebase-debug.log
-firebase.json
-firestore.rules
-README.md
-lib/garagem_controller.dart
-lib/main.dart
-lib/mapa_page.dart
-lib/ocupacao_ao_vivo.dart
-lib/mobile/garagem_controller.dart
-lib/mobile/garagem_pagina.dart
-lib/mobile/hud.dart
-linux/flutter/generated_plugin_registrant.cc
-linux/flutter/generated_plugin_registrant.h
-linux/flutter/generated_plugins.cmake
-macos/Flutter/GeneratedPluginRegistrant.swift
-test/ocupacao_ao_vivo_test.dart
-videos/20261008_205020.mp4
-videos/teste_carros.mp4
-.venv/
-__pycache__/
-*.pt
+
+# Visão computacional (visao/)
+# vídeos: grandes demais para o GitHub; cada um usa os seus
+videos/
 *.mp4
 *.avi
 *.mov
 *.mkv
+# pesos do YOLO: o ultralytics baixa sozinho na primeira execução
+*.pt
+.venv/
+__pycache__/
+# gerados pelo detector a cada execução
 status_vagas.json
 status_vagas.json.tmp
 eventos*.csv
+# chave da conta de serviço do Firebase: dá acesso total ao banco, NUNCA vai para o Git
 firebase-chave.json
 *-firebase-adminsdk-*.json
