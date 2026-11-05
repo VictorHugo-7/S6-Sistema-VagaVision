@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'alertas_page.dart';
 import 'app_state.dart';
 import 'avisos_page.dart';
+import 'carros_controller.dart';
+import 'cena_login.dart';
 import 'garagem_controller.dart';
+import 'garagem_custom_page.dart';
 import 'logo.dart';
 import 'historico.dart';
 import 'localizacao.dart';
@@ -20,12 +23,13 @@ const _itens = [
   (Icons.priority_high_rounded, 'Alertas'),
   (Icons.notifications_rounded, 'Avisos'),
   (Icons.insert_chart_rounded, 'Painel'),
+  (Icons.directions_car_rounded, 'Garagem'),
 ];
 
 const _abaAvisos = 2;
 const _abaPainel = 3;
+const _abaGaragem = 4;
 
-/// Ícone da aba; na aba "Avisos" mostra a bolinha vermelha com a quantidade de não lidas.
 class _IconeAba extends StatelessWidget {
   const _IconeAba({required this.indice, required this.notif, required this.cor, required this.tamanho});
 
@@ -53,8 +57,6 @@ class _IconeAba extends StatelessWidget {
   }
 }
 
-/// Estrutura do app logado. A navegação se adapta ao espaço:
-/// celular em pé → barra inferior; celular deitado → trilho compacto; web/tablet → menu lateral.
 class Shell extends StatefulWidget {
   const Shell({
     super.key,
@@ -65,6 +67,7 @@ class Shell extends StatefulWidget {
     required this.meuCarro,
     required this.historico,
     required this.campus,
+    required this.carros,
   });
 
   final AppState app;
@@ -74,17 +77,18 @@ class Shell extends StatefulWidget {
   final MeuCarro meuCarro;
   final HistoricoOcupacao historico;
   final LocalizacaoCampus campus;
+  final CarrosController carros;
 
   @override
   State<Shell> createState() => _ShellState();
 }
 
 class _ShellState extends State<Shell> {
-  int _aba = 0; // 0 = Mapa, 1 = Alertas, 2 = Avisos, 3 = Painel
+  int _aba = 0;
   String? _blocoEditando;
 
   void _trocarAba(int i) {
-    if (i == _abaAvisos) widget.campus.verificar(); // atualiza a localização ao abrir os avisos
+    if (i == _abaAvisos) widget.campus.verificar();
     setState(() {
       _aba = i;
       _blocoEditando = null;
@@ -97,6 +101,7 @@ class _ShellState extends State<Shell> {
         app: widget.app,
         garagem: widget.garagem,
         meuCarro: widget.meuCarro,
+        carros: widget.carros,
         tema: widget.tema,
         mostrarSair: !navegacaoLateral,
         reservaInferior: reservaInferior,
@@ -108,6 +113,7 @@ class _ShellState extends State<Shell> {
         meuCarro: widget.meuCarro,
         onVoltar: () => _trocarAba(0),
       );
+    if (_aba == _abaGaragem) return GaragemCustomPage(carros: widget.carros);
     if (_aba == _abaPainel) {
       return PainelPage(historico: widget.historico, garagem: widget.garagem, onVoltar: () => _trocarAba(0));
     }
@@ -142,7 +148,15 @@ class _ShellState extends State<Shell> {
                 _MenuLateral(app: widget.app, tema: widget.tema, notif: widget.notif, aba: _aba, onAba: _trocarAba)
               else
                 _Trilho(tema: widget.tema, notif: widget.notif, aba: _aba, onAba: _trocarAba, onSair: widget.app.sair),
-              Expanded(child: SafeArea(child: _conteudo(navegacaoLateral: true))),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Theme.of(context).brightness == Brightness.dark ? const FundoCena() : const SizedBox.shrink(),
+                    SafeArea(child: _conteudo(navegacaoLateral: true)),
+                  ],
+                ),
+              ),
             ],
           ),
         );
@@ -165,7 +179,6 @@ class _ShellState extends State<Shell> {
                 _BarraInferior(altura: altura, aba: _aba, notif: widget.notif, onAba: _trocarAba),
               ],
             ),
-            // círculo do item atual: fica numa camada própria para ser tocável por inteiro
             Positioned(
               left: 0,
               right: 0,
@@ -230,12 +243,16 @@ class _BarraInferior extends StatelessWidget {
                     children: [
                       if (i != aba) _IconeAba(indice: i, notif: notif, cor: context.paleta.textoSuave, tamanho: 26),
                       Padding(
-                        padding: const EdgeInsets.only(top: 2, bottom: 12),
-                        child: Text(
-                          _itens[i].$2,
-                          style: mono(i == aba ? 17 : 12,
-                              peso: i == aba ? FontWeight.w700 : FontWeight.w500,
-                              cor: i == aba ? context.paleta.texto : context.paleta.textoSuave),
+                        padding: const EdgeInsets.only(top: 2, bottom: 12, left: 2, right: 2),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _itens[i].$2,
+                            maxLines: 1,
+                            style: mono(i == aba ? 17 : 12,
+                                peso: i == aba ? FontWeight.w700 : FontWeight.w500,
+                                cor: i == aba ? context.paleta.texto : context.paleta.textoSuave),
+                          ),
                         ),
                       ),
                     ],
@@ -249,7 +266,94 @@ class _BarraInferior extends StatelessWidget {
   }
 }
 
-/// Navegação compacta (só ícones) para celular deitado, onde a altura é escassa.
+class _ItemMenu extends StatelessWidget {
+  const _ItemMenu({
+    required this.indice,
+    required this.selecionado,
+    required this.notif,
+    required this.onTap,
+    this.compacto = false,
+  });
+
+  final int indice;
+  final bool selecionado;
+  final NotificacoesController notif;
+  final VoidCallback onTap;
+
+  final bool compacto;
+
+  static const _corSelecionada = Color(0xFF8FB4FF);
+
+  @override
+  Widget build(BuildContext context) {
+    final corIcone = selecionado ? _corSelecionada : Colors.white60;
+    final corTexto = selecionado ? Colors.white : Colors.white70;
+    final rotulo = _itens[indice].$2;
+    final Widget conteudo;
+    if (compacto) {
+      conteudo = SizedBox(
+        height: 62,
+        width: double.infinity,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _IconeAba(indice: indice, notif: notif, tamanho: 24, cor: corIcone),
+            const SizedBox(height: 2),
+            Text(rotulo, style: mono(11, peso: FontWeight.w700, cor: corTexto)),
+          ],
+        ),
+      );
+    } else {
+      conteudo = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 3,
+              height: 18,
+              decoration: BoxDecoration(
+                color: selecionado ? _corSelecionada : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _IconeAba(indice: indice, notif: notif, tamanho: 22, cor: corIcone),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                rotulo,
+                style: mono(14, peso: selecionado ? FontWeight.w700 : FontWeight.w600, cor: corTexto),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Semantics(
+      button: true,
+      selected: selecionado,
+      label: compacto ? rotulo : null,
+      excludeSemantics: compacto,
+      child: Material(
+        color: selecionado ? Cores.azulBotao.withValues(alpha: 0.24) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: conteudo,
+        ),
+      ),
+    );
+  }
+}
+
+BoxDecoration _fundoMenu(BuildContext context) => BoxDecoration(
+      color: context.paleta.lateral,
+      border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
+    );
+
 class _Trilho extends StatelessWidget {
   const _Trilho({required this.tema, required this.notif, required this.aba, required this.onAba, required this.onSair});
 
@@ -263,46 +367,31 @@ class _Trilho extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 88,
-      color: context.paleta.lateral,
+      decoration: _fundoMenu(context),
       child: SafeArea(
         right: false,
         child: Column(
           children: [
             const SizedBox(height: 12),
-            for (var i = 0; i < _itens.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                child: Semantics(
-                  button: true,
-                  selected: i == aba,
-                  label: _itens[i].$2,
-                  excludeSemantics: true,
-                  child: Material(
-                    color: i == aba ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => onAba(i),
-                      child: SizedBox(
-                        height: 62,
-                        width: double.infinity,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _IconeAba(indice: i, notif: notif, tamanho: 24, cor: i == aba ? Cores.azul : Colors.white70),
-                            const SizedBox(height: 2),
-                            Text(
-                              _itens[i].$2,
-                              style: mono(11, peso: FontWeight.w700, cor: i == aba ? Cores.azul : Colors.white70),
-                            ),
-                          ],
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _itens.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+                        child: _ItemMenu(
+                          indice: i,
+                          selecionado: i == aba,
+                          notif: notif,
+                          compacto: true,
+                          onTap: () => onAba(i),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
               ),
-            const Spacer(),
+            ),
             BotaoTema(tema: tema, sobreFundoEscuro: true),
             Tooltip(
               message: 'Sair',
@@ -310,7 +399,7 @@ class _Trilho extends StatelessWidget {
                 onPressed: onSair,
                 iconSize: 24,
                 constraints: const BoxConstraints(minWidth: alvoToque, minHeight: alvoToque),
-                icon: const Icon(Icons.logout_rounded, color: Colors.white, semanticLabel: 'Sair'),
+                icon: const Icon(Icons.logout_rounded, color: Colors.white70, semanticLabel: 'Sair'),
               ),
             ),
             const SizedBox(height: 8),
@@ -332,71 +421,116 @@ class _MenuLateral extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nome = (app.usuario ?? '').trim();
+    final inicial = nome.isEmpty ? '?' : nome.substring(0, 1).toUpperCase();
     return Container(
-      width: 240,
-      color: context.paleta.lateral,
+      width: 248,
+      decoration: _fundoMenu(context),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  LogoVaga(largura: 40, fundo: context.paleta.lateral),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'VagaVision',
-                      style: mono(18, peso: FontWeight.w700, cor: Colors.white),
-                      overflow: TextOverflow.ellipsis,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  children: [
+                    LogoVaga(largura: 36, fundo: context.paleta.lateral),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'VagaVision',
+                        style: mono(18, peso: FontWeight.w700, cor: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 10),
+                child: Text('MENU', style: mono(10, peso: FontWeight.w700, cor: Colors.white38)),
+              ),
               for (var i = 0; i < _itens.length; i++)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Semantics(
-                    button: true,
-                    selected: i == aba,
-                    child: Material(
-                      color: i == aba ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => onAba(i),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
-                          child: Row(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _ItemMenu(indice: i, selecionado: i == aba, notif: notif, onTap: () => onAba(i)),
+                ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF3B82F6), Cores.azulBotao],
+                            ),
+                          ),
+                          child: Text(inicial, style: mono(15, peso: FontWeight.w700, cor: Colors.white)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _IconeAba(indice: i, notif: notif, tamanho: 22, cor: i == aba ? Cores.azul : Colors.white70),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _itens[i].$2,
-                                  style: mono(15, peso: FontWeight.w700, cor: i == aba ? Cores.azul : Colors.white70),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              Text(
+                                nome.isEmpty ? 'Visitante' : nome,
+                                style: mono(13, peso: FontWeight.w700, cor: Colors.white),
+                                overflow: TextOverflow.ellipsis,
                               ),
+                              Text('Conectado', style: mono(10, cor: Colors.white54)),
                             ],
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        BotaoTema(tema: tema, sobreFundoEscuro: true),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Material(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: app.sair,
+                              child: SizedBox(
+                                height: alvoToque,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.logout_rounded, size: 18, color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text('Sair', style: mono(14, peso: FontWeight.w700, cor: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              const Spacer(),
-              Align(alignment: Alignment.centerLeft, child: BotaoTema(tema: tema, sobreFundoEscuro: true)),
-              const SizedBox(height: 4),
-              Text(app.usuario ?? '', style: mono(12, cor: Colors.white70), overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              TextButton.icon(
-                onPressed: app.sair,
-                style: TextButton.styleFrom(minimumSize: const Size(alvoToque, alvoToque)),
-                icon: const Icon(Icons.logout_rounded, size: 18, color: Colors.white),
-                label: Text('Sair', style: mono(14, peso: FontWeight.w700, cor: Colors.white)),
               ),
             ],
           ),

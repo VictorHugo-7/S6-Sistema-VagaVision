@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'cena_login.dart';
 import 'garagem_controller.dart';
 import 'historico.dart';
 import 'painel_analise.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// Painel de análise + previsão de lotação (versão web/tablet).
 class PainelPage extends StatelessWidget {
   const PainelPage({super.key, required this.historico, required this.garagem, required this.onVoltar});
 
@@ -22,15 +22,17 @@ class PainelPage extends StatelessWidget {
       suave: p.textoSuave,
       cartao: p.campo,
       destaque: Cores.azulBotao,
-      livre: Cores.livre,
+      livre: CoresCena.livre,
       medio: Cores.alertaSimples,
-      ocupada: Cores.ocupada,
+      ocupada: CoresCena.ocupada,
       fonte: (t, {peso, cor}) => mono(t, peso: peso ?? FontWeight.w500, cor: cor),
     );
     return PaginaFolha(
       child: FolhaBranca(
         titulo: 'Painel',
-        rodape: BotaoAzul(texto: 'Voltar', altura: 48, onTap: onVoltar),
+        subtitulo: 'Ocupação agora, picos e previsão de lotação',
+        icone: Icons.insert_chart_rounded,
+        rodape: BotaoContorno(texto: 'Voltar', altura: 48, icone: Icons.arrow_back_rounded, onTap: onVoltar),
         filhos: [
           ListenableBuilder(
             listenable: garagem,
