@@ -23,7 +23,7 @@ void main() {
     c.adicionar('Alerta médio', 'Bloco U: 3 vagas livres.', tipo: TipoNotificacao.aviso);
     c.adicionar('Alerta severo', 'Bloco U: 1 vaga livre.', tipo: TipoNotificacao.critico);
     expect(recebidas, ['Alerta médio', 'Alerta severo']);
-    expect(c.itens.first.titulo, 'Alerta severo'); // o mais novo primeiro
+    expect(c.itens.first.titulo, 'Alerta severo');
     expect(c.naoLidas, 2);
 
     c.marcarTodasLidas();
@@ -41,10 +41,10 @@ void main() {
   test('vaga desocupada: rastreador e chave de aviso', () {
     final r = RastreadorVagas();
     final cod = ['A1', 'A2', 'A3'];
-    expect(r.desocupadas(0, cod, [true, true, false]), isEmpty); // primeira leitura só memoriza
+    expect(r.desocupadas(0, cod, [true, true, false]), isEmpty);
     expect(r.desocupadas(0, cod, [false, true, false]), ['A1']);
     expect(r.desocupadas(0, cod, [false, true, false]), isEmpty);
-    expect(r.desocupadas(0, cod, [false, false, true]), ['A2']); // A3 passou a ocupada: não conta
+    expect(r.desocupadas(0, cod, [false, false, true]), ['A2']);
 
     final c = NotificacoesController();
     c.vagasDesocupadas('Bloco U', 1, ['A1']);
@@ -60,9 +60,8 @@ void main() {
   test('histórico: segue a curva típica e passa a seguir os dados reais', () {
     SharedPreferences.setMockInitialValues({});
     final h = HistoricoOcupacao(intervaloMinimo: Duration.zero);
-    // 2026-10-21 é quarta-feira (weekday 3)
     expect(h.ocupacaoEsperada(3, 9), closeTo(HistoricoOcupacao.curvaBase(3, 9), 1e-9));
-    expect(h.ocupacaoEsperada(7, 9), lessThan(h.ocupacaoEsperada(3, 9))); // domingo é mais vazio
+    expect(h.ocupacaoEsperada(7, 9), lessThan(h.ocupacaoEsperada(3, 9)));
     expect(h.leituras, 0);
     expect(h.confiavel, isFalse);
 
@@ -71,9 +70,7 @@ void main() {
       h.registrar(0.0, agora: quarta9h.add(Duration(seconds: i)));
     }
     expect(h.leituras, 30);
-    // 30 leituras de 0% pesam bem mais que a curva (3): a média cai bastante
     expect(h.ocupacaoEsperada(3, 9), lessThan(0.15));
-    // outras horas continuam na curva típica
     expect(h.ocupacaoEsperada(3, 10), closeTo(HistoricoOcupacao.curvaBase(3, 10), 1e-9));
 
     final pico = h.picoDoDia(3);
@@ -85,7 +82,6 @@ void main() {
     expect(h.proximaLotacao(DateTime(2026, 10, 21, 14), limite: 0.85)?.hora, 19);
     expect(h.proximaLotacao(DateTime(2026, 10, 21, 14), limite: 0.99), isNull);
 
-    // leituras muito próximas são ignoradas
     final h2 = HistoricoOcupacao(intervaloMinimo: const Duration(seconds: 20));
     expect(h2.registrar(0.5, agora: quarta9h), isTrue);
     expect(h2.registrar(0.9, agora: quarta9h.add(const Duration(seconds: 5))), isFalse);
@@ -154,7 +150,7 @@ void main() {
     expect(find.text('Previsão de lotação'), findsOneWidget);
     expect(find.text('Ocupação por hora'), findsOneWidget);
     expect(find.text('Média por dia da semana'), findsOneWidget);
-    expect(find.text('50%'), findsOneWidget); // ocupação agora
+    expect(find.text('50%'), findsOneWidget);
     expect(find.textContaining('Deve lotar'), findsOneWidget);
     expect(find.textContaining('Estimativa inicial'), findsOneWidget);
     await tester.tap(find.text('Dom').first);
@@ -164,7 +160,6 @@ void main() {
 
   test('localização: distância e estados dentro/fora/sem permissão', () async {
     expect(LocalizacaoCampus.distanciaEntre(0, 0, 0, 0), 0);
-    // 0,001° de latitude ≈ 111 m
     expect(LocalizacaoCampus.distanciaEntre(-23.647955, -46.574245, -23.646955, -46.574245), closeTo(111, 2));
 
     var leitura = const LeituraLocal(latitude: -23.6480, longitude: -46.5742);
@@ -172,7 +167,7 @@ void main() {
     expect(c.estado, EstadoLocal.desconhecido);
     await c.verificar();
     expect(c.estado, EstadoLocal.naFaculdade);
-    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63); // centro de São Paulo
+    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63);
     await c.verificar();
     expect(c.estado, EstadoLocal.foraDaFaculdade);
     expect(c.distanciaMetros!, greaterThan(10000));
@@ -191,27 +186,26 @@ void main() {
     final n = NotificacoesController();
     n.motivoBloqueio = () => motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: n.somenteNaFaculdade);
 
-    // localização ainda desconhecida: com a chave ligada, não avisa
     n.vagasDesocupadas('Bloco U', 1, ['A1']);
     expect(n.itens, isEmpty);
 
-    await campus.verificar(); // na faculdade
+    await campus.verificar();
     n.vagasDesocupadas('Bloco U', 1, ['A1']);
     expect(n.itens.length, 1);
 
-    carro.marcar(0, 'A2'); // carro estacionado: pausa
+    carro.marcar(0, 'A2');
     n.vagasDesocupadas('Bloco U', 1, ['A3']);
     expect(n.itens.length, 1);
     expect(statusDosAvisos(carro: carro, campus: campus, somenteNaFaculdade: true), contains('avisos pausados'));
     carro.limpar();
 
-    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63); // fora da faculdade
+    leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63);
     await campus.verificar();
     n.vagasDesocupadas('Bloco U', 1, ['A4']);
     expect(n.itens.length, 1);
     expect(motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: true), 'Fora da faculdade');
 
-    n.definirSomenteNaFaculdade(false); // chave desligada: avisa em qualquer lugar
+    n.definirSomenteNaFaculdade(false);
     n.vagasDesocupadas('Bloco U', 1, ['A5']);
     expect(n.itens.length, 2);
     campus.dispose();
@@ -236,7 +230,7 @@ void main() {
     expect(msg('invalid-email'), contains('inválido'));
     expect(msg('too-many-requests'), contains('Muitas tentativas'));
     expect(msg('operation-not-allowed'), contains('não está ativado'));
-    expect(msg('popup-closed-by-user'), isNull); // cancelar não é erro
+    expect(msg('popup-closed-by-user'), isNull);
   });
 
   test('lembrar de mim: padrão ligado, guarda a escolha e o e-mail', () async {
@@ -305,7 +299,7 @@ void main() {
     await tester.tap(find.text('Entrar com e-mail e senha'));
     await tester.pump();
 
-    final botao = find.text('Entrar com e-mail').last; // o título vem antes, o botão depois
+    final botao = find.text('Entrar com e-mail').last;
     await tester.tap(botao);
     await tester.pump();
     expect(find.text('Digite seu e-mail.'), findsOneWidget);
@@ -331,7 +325,6 @@ void main() {
     await tester.pump();
     expect(chamadas, 1);
 
-    // criar conta pede o nome
     await tester.tap(find.text('Criar conta'));
     await tester.pump();
     expect(find.widgetWithText(TextField, 'Nome'), findsOneWidget);
@@ -362,7 +355,7 @@ void main() {
     await tester.pumpWidget(const VagaVisionApp(semFirebase: true));
     await tester.pump(const Duration(milliseconds: 1700));
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.text('Entrar'));
+    await tester.tap(find.text('Entrar com Google'));
     await tester.pump(const Duration(milliseconds: 800));
 
     expect(brilho(), Brightness.light);

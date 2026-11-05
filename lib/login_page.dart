@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
 import 'auth_service.dart';
+import 'cena_login.dart';
 import 'login_email.dart';
 import 'logo.dart';
 import 'theme.dart';
@@ -30,7 +33,6 @@ class LoginPage extends StatefulWidget {
 
   final AppState app;
 
-  /// `true`: login simulado, sem Firebase (modo SEM_LOGIN e testes).
   final bool semFirebase;
 
   @override
@@ -62,7 +64,6 @@ class _LoginPageState extends State<LoginPage> {
     });
     try {
       await AuthService.entrarComGoogle(lembrar: _lembrar);
-      // Sucesso: o listener em main.dart atualiza o AppState e o app troca para o mapa.
     } on ErroLogin catch (e) {
       if (mounted) setState(() => _erro = e.mensagem);
     } catch (_) {
@@ -82,164 +83,137 @@ class _LoginPageState extends State<LoginPage> {
       botao: Cores.azulBotao,
       erro: const Color(0xFFE5604F),
       sucesso: escuro ? Cores.livre : Cores.ativo,
+      link: escuro ? p.destaque : Cores.azulBotao,
       fonte: (t, {peso, cor}) => mono(t, peso: peso ?? FontWeight.w500, cor: cor),
     );
   }
 
-  Widget _acoes(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _acoes(BuildContext context, {bool compacto = false}) {
+    final p = context.paleta;
+    final claro = Theme.of(context).brightness == Brightness.light;
+    return EntradaSuave(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TituloAcesso(texto: p.texto, suave: p.textoSuave, compacto: compacto),
+          SizedBox(height: compacto ? 16 : 28),
+          BotaoGoogle(onTap: _carregando ? null : _entrar, carregando: _carregando, claro: claro),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: LembrarDeMim(
+              estilo: _estiloEmail(context),
+              valor: _lembrar,
+              onChanged: (v) => setState(() => _lembrar = v),
+            ),
+          ),
+          if (_erro != null) ...[
+            const SizedBox(height: 12),
+            CaixaMensagem(texto: _erro!),
+          ],
+          const SizedBox(height: 20),
+          DivisorOu(cor: p.textoSuave),
+          const SizedBox(height: 16),
+          FormularioEmail(
+            estilo: _estiloEmail(context),
+            simulado: widget.semFirebase ? () => widget.app.entrar('Visitante') : null,
+            lembrar: _lembrar,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _marca() => const MarcaCena(logo: LogoVaga(largura: 34, fundo: CoresCena.fundo));
+
+  Widget _cenaComManchete() {
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Material(
-          color: Cores.azulBotao,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: _carregando ? null : _entrar,
-            child: Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: Row(
-                children: [
-                  Text('Entrar', style: mono(16, peso: FontWeight.w700, cor: Colors.white)),
-                  const Spacer(),
-                  if (_carregando)
-                    const SizedBox(
-                      width: 26,
-                      height: 26,
-                      child: CircularProgressIndicator(strokeWidth: 2.6, color: Colors.white),
-                    )
-                  else
-                    Semantics(
-                      label: 'Google',
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                        child: const LogoGoogle(tamanho: 20),
+        const FundoCena(),
+        LayoutBuilder(builder: (context, c) {
+          final largura = math.max(0.0, c.maxWidth - 96);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(48, 40, 48, 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: _marca()),
+                const Expanded(
+                  flex: 5,
+                  child: CenaEstacionamento(comFundo: false, recuo: EdgeInsets.symmetric(vertical: 16)),
+                ),
+                Flexible(
+                  flex: 3,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.bottomLeft,
+                      child: SizedBox(
+                        width: largura,
+                        child: MancheteCena(tamanhoTitulo: (largura * .075).clamp(26.0, 40.0)),
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: LembrarDeMim(
-            estilo: _estiloEmail(context),
-            valor: _lembrar,
-            onChanged: (v) => setState(() => _lembrar = v),
-          ),
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Center(
-            child: Text(
-              _erro ?? 'Entre com sua conta Google',
-              textAlign: TextAlign.center,
-              style: mono(14, cor: _erro == null ? context.paleta.textoSuave : const Color(0xFFE5604F)),
-            ),
-          ),
-        ),
-        FormularioEmail(
-          estilo: _estiloEmail(context),
-          simulado: widget.semFirebase ? () => widget.app.entrar('Visitante') : null,
-          lembrar: _lembrar,
-        ),
-      ],
-    );
-  }
-
-  Widget _marca(BuildContext context, {double logo = 130, double titulo = 34}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        LogoVaga(largura: logo, fundo: context.paleta.fundo),
-        SizedBox(height: logo * 0.18),
-        Text('VagaVision', style: mono(titulo, peso: FontWeight.w700, cor: Colors.white)),
-      ],
-    );
-  }
-
-  Widget _cartao(BuildContext context) => Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(color: context.paleta.folha, borderRadius: BorderRadius.circular(28)),
-        child: _acoes(context),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.paleta.fundo,
-      body: SafeArea(
-        bottom: false, // a folha inferior vai até a borda e cuida do próprio recuo
-        child: LayoutBuilder(builder: (context, c) {
-          final paisagemCurta = c.maxWidth > c.maxHeight && c.maxHeight < 560;
-
-          if (paisagemCurta) {
-            // celular deitado: marca à esquerda, ações à direita
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(child: Center(child: _marca(context, logo: 96, titulo: 26))),
-                    const SizedBox(width: 32),
-                    Expanded(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 400), child: _cartao(context))),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          if (c.maxWidth >= 700) {
-            // web / tablet: cartão centralizado
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [_marca(context), const SizedBox(height: 48), _cartao(context)],
                   ),
                 ),
-              ),
-            );
-          }
-
-          // celular em pé: marca no alto e folha inferior, como no protótipo
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: c.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: _marca(context)),
-                      ),
-                    ),
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.fromLTRB(46, 42, 46, 24 + MediaQuery.paddingOf(context).bottom),
-                      decoration: BoxDecoration(
-                        color: context.paleta.folha,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-                      ),
-                      child: _acoes(context),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
           );
         }),
-      ),
+      ],
+    );
+  }
+
+  Widget _cenaCompacta() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const CenaEstacionamento(recuo: EdgeInsets.fromLTRB(16, 56, 16, 12)),
+        Positioned(left: 24, top: 18, child: _marca()),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.paleta;
+    return Scaffold(
+      backgroundColor: CoresCena.fundo,
+      body: LayoutBuilder(builder: (context, c) {
+        final paisagemCurta = c.maxWidth > c.maxHeight && c.maxHeight < 560;
+
+        if (paisagemCurta || c.maxWidth >= 900) {
+          final larguraForm =
+              paisagemCurta ? (c.maxWidth * .5).clamp(320.0, 440.0) : (c.maxWidth * .4).clamp(420.0, 540.0);
+          return SafeArea(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: paisagemCurta ? _cenaCompacta() : _cenaComManchete()),
+                SizedBox(
+                  width: larguraForm,
+                  child: ColoredBox(
+                    color: p.folha,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(horizontal: paisagemCurta ? 28 : 48, vertical: paisagemCurta ? 20 : 40),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 380),
+                          child: _acoes(context, compacto: paisagemCurta),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return LayoutLoginVertical(marca: _marca(), folha: p.folha, child: _acoes(context));
+      }),
     );
   }
 }
