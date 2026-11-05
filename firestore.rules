@@ -1,15 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada usuário só lê/escreve o próprio documento.
     match /usuarios/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-    // Ocupação das vagas detectada pela câmera (visao/detectar_ocupacao.py --firebase).
-    // Qualquer usuário logado lê; só o detector grava (a conta de serviço ignora estas regras).
     match /ocupacao/{nivel} {
       allow read: if request.auth != null;
       allow write: if false;
+    }
+    match /carros/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['dono', 'carro', 'mostrarNoMapa', 'vaga', 'atualizadoEm'])
+        && request.resource.data.dono is string && request.resource.data.dono.size() <= 30
+        && request.resource.data.carro is map && request.resource.data.carro.size() <= 40
+        && (request.resource.data.vaga == null || request.resource.data.vaga is map);
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }
