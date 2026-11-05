@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart' as site show Paleta;
+
 /// Paleta tirada do Figma do VagaVision.
 class Cores {
   static const fundo = Color(0xFF203D65); // azul-marinho de fundo
@@ -13,20 +15,6 @@ class Cores {
   static const cinza = Color(0xFFB7B7B7); // interruptores desligados
   static const divisor = Color(0xFFD9D9D9); // linhas entre as vagas
   static const ativo = Color(0xFF287A18); // interruptor ligado (verde escuro)
-}
-
-/// Medidas do pátio em unidades do mundo 3D (proporções do Figma: vaga 92x134).
-class ConfigPatio {
-  static const cols = 5; // vagas por fileira
-  static const vagaW = 2.6; // largura da vaga
-  static const vagaD = 3.8; // profundidade da vaga
-  static const passo = 3.9; // distância entre o centro de vagas vizinhas
-  static const aisle = 11.8; // corredor entre as duas fileiras (proporção do Figma)
-  static const margem = 1.0; // folga entre as vagas e a moldura branca
-  static const numNiveis = 2;
-
-  static const larguraPatio = (cols - 1) * passo + vagaW + 2 * margem;
-  static const profundidadePatio = aisle + 2 * vagaD + 2 * margem;
 }
 
 /// Cores que mudam entre o modo claro e o escuro (use `context.paleta`).
@@ -128,5 +116,6 @@ ThemeData temaDoApp(Paleta p, Brightness brilho) => ThemeData(
         onSurface: p.texto,
         surface: p.superficie,
       ),
-      extensions: [p],
+      // a cena 3D é a mesma do site e lê a paleta do site (lib/theme.dart)
+      extensions: [p, brilho == Brightness.dark ? site.Paleta.escuro : site.Paleta.claro],
     );

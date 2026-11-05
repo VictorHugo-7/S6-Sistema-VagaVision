@@ -12,8 +12,8 @@ import '../widget_inicial.dart';
 import 'alertas_controller.dart';
 import 'alertas_pagina.dart';
 import 'avisos_pagina.dart';
-import 'garagem_controller.dart';
-import 'garagem_scene.dart';
+import '../garagem_controller.dart';
+import '../garagem_scene.dart';
 import 'hud.dart';
 import 'painel_pagina.dart';
 import 'quadro_tela.dart';
@@ -139,7 +139,15 @@ class _GaragemPaginaState extends State<GaragemPagina> {
       icone: const Icon(Icons.location_on, color: Colors.white, size: 36),
       child: Stack(
         children: [
-          Positioned.fill(child: GaragemScene(controller: _controller, meuCarro: _meuCarro)),
+          // a cena é a mesma do site; fica entre os botões de cima e a faixa de baixo do HUD
+          // para o pátio não ficar escondido atrás deles
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 210,
+            bottom: 70,
+            child: GaragemScene(controller: _controller, meuCarro: _meuCarro),
+          ),
           Positioned.fill(
             child: Hud(
               controller: _controller,
