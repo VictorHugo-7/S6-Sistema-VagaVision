@@ -4,8 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:garagem_central/main.dart';
 
-/// Abre o app em vários tamanhos de tela e falha em qualquer erro de layout
-/// (overflow, constraints inválidas etc.) em todas as telas do fluxo.
 void main() {
   const telas = <String, Size>{
     'celular pequeno 320x568': Size(320, 568),
@@ -53,7 +51,7 @@ void main() {
           await tester.pump(const Duration(milliseconds: 1700));
           await passo('login');
 
-          await tester.tap(find.text('Entrar'));
+          await tester.tap(find.text('Entrar com Google'));
           await passo('mapa 2D');
 
           await tester.tap(find.text('3D'));
