@@ -6,9 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:garagem_central/main.dart';
 
-/// Gera capturas de tela reais (com a fonte embutida) em test/goldens/ para inspeção visual.
-/// Só roda sob demanda (a renderização varia entre máquinas, então não serve como teste de CI):
-///   PowerShell: $env:CAPTURAS=1; flutter test --update-goldens test/screens_test.dart
 void main() {
   final gerar = Platform.environment.containsKey('CAPTURAS');
   const telas = <String, Size>{
@@ -20,7 +17,6 @@ void main() {
   };
 
   setUpAll(() async {
-    // Os testes não carregam a fonte de ícones sozinhos.
     final raiz = Platform.environment['FLUTTER_ROOT'];
     if (raiz == null) return;
     final arquivo = File('$raiz/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
@@ -46,7 +42,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1700));
       await captura('1_login');
 
-      await tester.tap(find.text('Entrar'), warnIfMissed: false);
+      await tester.tap(find.text('Entrar com Google'), warnIfMissed: false);
       await captura('2_mapa2d');
 
       await tester.tap(find.text('3D'), warnIfMissed: false);

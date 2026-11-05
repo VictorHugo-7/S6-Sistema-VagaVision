@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Paleta extraída do protótipo do Figma.
 class Cores {
   static const azul = Color(0xFF203D65);
   static const azulEscuro = Color(0xFF0E294F);
@@ -13,14 +12,12 @@ class Cores {
   static const barra = Color(0xFFF3F33C);
   static const ativo = Color(0xFF267A18);
   static const cinza = Color(0xFFB8B8B8);
-  // contraste mínimo de 4.5:1 sobre branco/folha (WCAG AA); o Figma usava #8C8C8C
   static const cinzaTexto = Color(0xFF5F6670);
   static const campo = Color(0xFFF2F2F2);
   static const texto = Color(0xFF111111);
   static const alertaSimples = Color(0xFFF3C33C);
   static const alertaMedio = Color(0xFFF08A24);
 
-  // cena 3D
   static const piso3d = Color(0xFF2A4A78);
   static const via3d = Color(0xFF264470);
   static const coluna3d = Color(0xFF3C5A85);
@@ -30,15 +27,11 @@ class Cores {
   static const predio3d = Color(0xFF9DB1CC);
 }
 
-/// Área mínima de toque recomendada (Material / HIG).
 const double alvoToque = 44;
 
-/// Texto padrão (IBM Plex Mono). Sem [cor], herda a cor do tema (clara ou escura).
 TextStyle mono(double tamanho, {FontWeight peso = FontWeight.w500, Color? cor}) =>
     GoogleFonts.ibmPlexMono(fontSize: tamanho, fontWeight: peso, color: cor);
 
-/// Cores que mudam entre o modo claro e o escuro. Use `context.paleta` (se a cor não
-/// estiver aqui, ela é igual nos dois modos e continua em [Cores]).
 class Paleta extends ThemeExtension<Paleta> {
   const Paleta({
     required this.fundo,
@@ -53,16 +46,16 @@ class Paleta extends ThemeExtension<Paleta> {
     required this.moldura,
   });
 
-  final Color fundo; // fundo das telas
-  final Color lateral; // menu lateral / trilho
-  final Color profundo; // splash e topo do login
-  final Color superficie; // cartões, barra inferior, pílulas
-  final Color folha; // folha do login
+  final Color fundo;
+  final Color lateral;
+  final Color profundo;
+  final Color superficie;
+  final Color folha;
   final Color texto;
   final Color textoSuave;
   final Color campo;
-  final Color destaque; // o azul usado em ícones/linhas sobre a superfície
-  final Color moldura; // contorno do mapa
+  final Color destaque;
+  final Color moldura;
 
   static const claro = Paleta(
     fundo: Cores.azul,
@@ -78,16 +71,16 @@ class Paleta extends ThemeExtension<Paleta> {
   );
 
   static const escuro = Paleta(
-    fundo: Color(0xFF0B1626),
-    lateral: Color(0xFF070F1B),
+    fundo: Color(0xFF081120),
+    lateral: Color(0xFF060D18),
     profundo: Color(0xFF050B14),
-    superficie: Color(0xFF16233A),
+    superficie: Color(0xFF111C2E),
     folha: Color(0xFF111C2E),
     texto: Color(0xFFE8ECF3),
     textoSuave: Color(0xFF9AA7BD),
-    campo: Color(0xFF1E2C46),
+    campo: Color(0xFF19263D),
     destaque: Color(0xFF8FB4FF),
-    moldura: Color(0xFF5B7399),
+    moldura: Color(0xFF22324D),
   );
 
   @override
@@ -129,7 +122,6 @@ extension PaletaDoContexto on BuildContext {
   Paleta get paleta => Theme.of(this).extension<Paleta>() ?? Paleta.claro;
 }
 
-/// Tema do app para o modo escolhido.
 ThemeData temaDoApp(Paleta p, Brightness brilho) => ThemeData(
       useMaterial3: true,
       brightness: brilho,
@@ -142,18 +134,15 @@ ThemeData temaDoApp(Paleta p, Brightness brilho) => ThemeData(
     );
 
 class ConfigPatio {
-  // Trecho do estacionamento do Bloco U em escala real (medido na planta do campus):
-  // duas fileiras de costas uma para a outra, separadas por um canteiro central.
   static const cols = 6;
   static const spotW = 2.5;
   static const spotD = 5.0;
-  static const aisle = 3.8; // largura do canteiro entre as fileiras
+  static const aisle = 3.8;
   static const numNiveis = 2;
 
   static const larguraPatio = cols * spotW + 4;
   static const profundidadePatio = aisle + 2 * spotD + 4;
 
-  // vista 2D (estilo do Figma): vagas mais estreitas, divisórias e moldura
   static const vagaLarg2d = spotW * 0.67;
   static const vagaProf2d = spotD - 0.6;
   static const quadroMeiaLargura = (cols / 2 - 0.165) * spotW + 0.55;

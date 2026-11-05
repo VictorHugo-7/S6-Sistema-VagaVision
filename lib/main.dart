@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_state.dart';
 import 'auth_service.dart';
 import 'banner_aviso.dart';
+import 'carros_controller.dart';
 import 'garagem_controller.dart';
 import 'historico.dart';
 import 'localizacao.dart';
@@ -22,18 +23,13 @@ import 'shell.dart';
 import 'tema_controller.dart';
 import 'theme.dart';
 
-/// `true` pula o Firebase e usa um login simulado (só para ver o visual / testes).
-/// Na linha de comando: flutter run --dart-define=SEM_LOGIN=true
 const semLogin = bool.fromEnvironment('SEM_LOGIN', defaultValue: false);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // As fontes estão embutidas em google_fonts/; nunca buscar na internet.
   GoogleFonts.config.allowRuntimeFetching = false;
   if (!semLogin) await AuthService.iniciar();
 
-  // Versão mobile (mapa 3D em quadro, retrato): app instalado no Android/iOS, ou o site aberto
-  // numa tela estreita (navegador do celular). Web em tela larga, tablet e desktop: versão com menu lateral.
   final nativoCelular = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
   final tela = PlatformDispatcher.instance.views.first;
   final larguraLogica = tela.physicalSize.width / tela.devicePixelRatio;
@@ -52,7 +48,6 @@ Future<void> main() async {
 class VagaVisionApp extends StatefulWidget {
   const VagaVisionApp({super.key, this.semFirebase = false});
 
-  /// `true`: não usa o Firebase; o botão "Entrar" faz um login simulado.
   final bool semFirebase;
 
   @override
@@ -68,8 +63,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   final _mensageiro = GlobalKey<ScaffoldMessengerState>();
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
+  late final _carros = CarrosController(meuCarro: _meuCarro, semFirebase: widget.semFirebase);
   final _historico = HistoricoOcupacao();
-  // ocupação detectada pela câmera (visao/detectar_ocupacao.py --firebase)
   late final _aoVivo = OcupacaoAoVivo(_garagem.aplicarLeitura);
   final _campus = LocalizacaoCampus();
   bool _campusIniciado = false;
@@ -81,37 +76,42 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   void initState() {
     super.initState();
     if (!widget.semFirebase) {
-      // Mantém a sessão do Firebase (inclusive entre aberturas do app) em sincronia com o AppState.
       _sessao = AuthService.usuario.listen((u) => _app.definirUsuario(u == null ? null : (u.displayName ?? u.email ?? 'Usuário')));
     }
     _tema.carregar();
     _meuCarro.carregar();
+    _carros.carregar();
     _historico.carregar();
     _notif.carregarPreferencias();
-    // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
     _notif.motivoBloqueio = () => motivoSemAviso(
           carro: _meuCarro,
           campus: _campus,
           somenteNaFaculdade: _notif.somenteNaFaculdade,
         );
-    // além das mudanças, registra a ocupação a cada 5 min (alimenta a previsão e o painel)
     _amostragem = Timer.periodic(const Duration(minutes: 5), (_) => _amostrar());
     _notif.aoChegar = (n) => mostrarBannerAviso(_mensageiro.currentState, n);
-    // Gera um aviso quando o nível de alerta do bloco muda (sorteio, toque numa vaga ou novos limites).
     _garagem.addListener(_verificarAlertas);
     _app.addListener(_verificarAlertas);
     _app.addListener(_sincronizarAoVivo);
+    _app.addListener(_sincronizarCarros);
     Future.delayed(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _splash = false);
     });
   }
 
-  /// Escuta a câmera só com usuário logado (as regras do Firestore exigem login).
   void _sincronizarAoVivo() {
     if (_app.logado && !widget.semFirebase) {
       _aoVivo.iniciar();
     } else {
       _aoVivo.parar();
+    }
+  }
+
+  void _sincronizarCarros() {
+    if (_app.logado && !widget.semFirebase) {
+      _carros.iniciar(_app.usuario ?? '');
+    } else if (_carros.conectado) {
+      _carros.parar();
     }
   }
 
@@ -125,12 +125,11 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   void _verificarAlertas() {
     if (!_app.logado) return;
     if (!_campusIniciado) {
-      _campusIniciado = true; // pede a localização só depois do login
+      _campusIniciado = true;
       _campus.iniciar();
     }
     _amostrar();
     final bloco = _app.blocoPrincipal;
-    // vagas que acabaram de ser desocupadas (em qualquer nível)
     for (var n = 0; n < _garagem.niveis.length; n++) {
       final vs = _garagem.niveis[n];
       final liberadas = _vagas.desocupadas(n, [for (final v in vs) v.code], [for (final v in vs) v.ocupada]);
@@ -163,6 +162,8 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
     _amostragem?.cancel();
     _aoVivo.parar();
     _app.removeListener(_sincronizarAoVivo);
+    _app.removeListener(_sincronizarCarros);
+    _carros.dispose();
     _meuCarro.dispose();
     _historico.dispose();
     _campus.dispose();
@@ -191,7 +192,6 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _mensageiro,
       themeMode: _tema.modo,
-      // respeita a fonte do sistema, mas limita o aumento para a interface densa não quebrar
       builder: (context, child) => MediaQuery.withClampedTextScaling(maxScaleFactor: 1.4, child: child!),
       theme: temaDoApp(Paleta.claro, Brightness.light),
       darkTheme: temaDoApp(Paleta.escuro, Brightness.dark),
@@ -211,6 +211,7 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
                         meuCarro: _meuCarro,
                         historico: _historico,
                         campus: _campus,
+                        carros: _carros,
                       )
                     : LoginPage(key: const ValueKey('login'), app: _app, semFirebase: widget.semFirebase),
               ),
