@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     // START: FlutterFire Configuration
     id("com.google.gms.google-services")
     // END: FlutterFire Configuration
@@ -10,7 +11,7 @@ plugins {
 android {
     namespace = "br.maua.garagem_central"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358" // versão exigida pelos plugins do Firebase/geolocator
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

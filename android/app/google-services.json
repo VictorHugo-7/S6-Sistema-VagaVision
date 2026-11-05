@@ -12,7 +12,20 @@
           "package_name": "br.maua.garagem_central"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "753202558730-rqknrsg4dhv9o8oqjrllppa74fftikdv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.maua.garagem_central",
+            "certificate_hash": "0cd6908c05e2d22ae7047e9d7fc8c13925b799b3"
+          }
+        },
+        {
+          "client_id": "753202558730-ria6rhi420f21frn6bd9aglqagslqi33.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB8KLJTdJvEHPjFBLB9pMvY3D1kRAVkVEE"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "753202558730-ria6rhi420f21frn6bd9aglqagslqi33.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "753202558730-h6194uu1g2avbq94e752e8vu3bd62kaq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "br.maua.garagemCentral"
+              }
+            }
+          ]
         }
       }
     }

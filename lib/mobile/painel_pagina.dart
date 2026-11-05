@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../historico.dart';
 import '../painel_analise.dart';
-import 'garagem_controller.dart';
+import '../garagem_controller.dart';
 import 'quadro_tela.dart';
 import 'theme.dart';
 

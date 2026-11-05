@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
@@ -120,9 +121,18 @@ class AuthService {
       });
 
     try {
-      final cred = kIsWeb
-          ? await FirebaseAuth.instance.signInWithPopup(provider)
-          : await FirebaseAuth.instance.signInWithProvider(provider);
+      final UserCredential cred;
+      if (kIsWeb) {
+        cred = await FirebaseAuth.instance.signInWithPopup(provider);
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        // No Android o fluxo pelo navegador (signInWithProvider) se perde ao voltar para o app;
+        // o seletor de contas nativo é mais confiável.
+        final credencial = await _credencialGoogleAndroid();
+        if (credencial == null) return; // o usuário cancelou
+        cred = await FirebaseAuth.instance.signInWithCredential(credencial);
+      } else {
+        cred = await FirebaseAuth.instance.signInWithProvider(provider);
+      }
       final user = cred.user;
       if (user != null) {
         if (dominioPermitido.isNotEmpty &&
@@ -135,6 +145,28 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       final msg = traduzir(e);
       if (msg != null) throw ErroLogin(msg);
+    }
+  }
+
+  /// Client ID "Web" (client_type 3) do projeto no google-services.json: o Google emite o
+  /// idToken para ele, e o Firebase só aceita tokens desse cliente.
+  static const _clienteWebGoogle = '753202558730-ria6rhi420f21frn6bd9aglqagslqi33.apps.googleusercontent.com';
+
+  static Future<void>? _googleIniciado;
+
+  /// Abre o seletor de contas Google do Android e devolve a credencial para o Firebase,
+  /// ou `null` se o usuário cancelou.
+  static Future<AuthCredential?> _credencialGoogleAndroid() async {
+    final google = GoogleSignIn.instance;
+    await (_googleIniciado ??= google.initialize(serverClientId: _clienteWebGoogle));
+    try {
+      final conta = await google.authenticate();
+      final idToken = conta.authentication.idToken;
+      if (idToken == null) throw ErroLogin('O Google não devolveu o token de login. Tente de novo.');
+      return GoogleAuthProvider.credential(idToken: idToken);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      throw ErroLogin('Não foi possível entrar com o Google (${e.code.name}).');
     }
   }
 
@@ -204,6 +236,12 @@ class AuthService {
 
   static Future<void> sair() async {
     if (_pronto) await FirebaseAuth.instance.signOut();
+    // sem isso o Android entra de novo na mesma conta, sem mostrar o seletor
+    if (_googleIniciado != null) {
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {}
+    }
   }
 
   /// Cria/atualiza o documento `usuarios/{uid}` no Firestore.

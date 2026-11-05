@@ -4,7 +4,7 @@ import '../meu_carro.dart';
 import '../notificacoes.dart';
 import '../ocupacao_ao_vivo.dart';
 import '../tema_controller.dart';
-import 'garagem_controller.dart';
+import '../garagem_controller.dart';
 import 'quadro_tela.dart';
 import 'theme.dart';
 

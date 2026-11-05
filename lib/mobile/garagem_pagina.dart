@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
 
+import '../auth_service.dart';
+import '../carros_controller.dart';
 import '../historico.dart';
 import '../localizacao.dart';
 import '../meu_carro.dart';
@@ -12,8 +15,8 @@ import '../widget_inicial.dart';
 import 'alertas_controller.dart';
 import 'alertas_pagina.dart';
 import 'avisos_pagina.dart';
-import 'garagem_controller.dart';
-import 'garagem_scene.dart';
+import '../garagem_controller.dart';
+import '../garagem_scene.dart';
 import 'hud.dart';
 import 'painel_pagina.dart';
 import 'quadro_tela.dart';
@@ -35,6 +38,8 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   final _alertas = AlertasController();
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
+  // carros personalizados dos usuários, desenhados nas vagas como no site
+  late final _carros = CarrosController(meuCarro: _meuCarro, semFirebase: !AuthService.pronto);
   final _historico = HistoricoOcupacao();
   // ocupação detectada pela câmera (visao/detectar_ocupacao.py --firebase); esta tela só
   // aparece com usuário logado, que é o que as regras do Firestore exigem
@@ -50,6 +55,11 @@ class _GaragemPaginaState extends State<GaragemPagina> {
     _controller.addListener(_verificarAvisos);
     _aoVivo.iniciar();
     _meuCarro.carregar();
+    _carros.carregar();
+    if (AuthService.pronto) {
+      final u = FirebaseAuth.instance.currentUser;
+      if (u != null) _carros.iniciar(u.displayName ?? u.email ?? 'Usuário');
+    }
     _historico.carregar();
     // sem avisos com o carro já estacionado ou quando o usuário está fora da faculdade
     widget.notif.motivoBloqueio = () => motivoSemAviso(
@@ -101,6 +111,7 @@ class _GaragemPaginaState extends State<GaragemPagina> {
   void dispose() {
     _amostragem?.cancel();
     _aoVivo.parar();
+    _carros.dispose();
     _controller.removeListener(_verificarAvisos);
     widget.notif.motivoBloqueio = null;
     _meuCarro.dispose();
@@ -139,7 +150,15 @@ class _GaragemPaginaState extends State<GaragemPagina> {
       icone: const Icon(Icons.location_on, color: Colors.white, size: 36),
       child: Stack(
         children: [
-          Positioned.fill(child: GaragemScene(controller: _controller, meuCarro: _meuCarro)),
+          // a cena é a mesma do site; fica entre os botões de cima e a faixa de baixo do HUD
+          // para o pátio não ficar escondido atrás deles
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 210,
+            bottom: 70,
+            child: GaragemScene(controller: _controller, meuCarro: _meuCarro, carros: _carros),
+          ),
           Positioned.fill(
             child: Hud(
               controller: _controller,
