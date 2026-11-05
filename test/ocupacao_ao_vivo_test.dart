@@ -6,7 +6,6 @@ import 'package:http/testing.dart';
 
 import 'package:garagem_central/garagem_controller.dart';
 import 'package:garagem_central/janela_camera.dart';
-import 'package:garagem_central/mobile/garagem_controller.dart' as mobile;
 import 'package:garagem_central/ocupacao_ao_vivo.dart';
 
 /// Documento no formato gravado por visao/publicar_firebase.py.
@@ -138,12 +137,12 @@ void main() {
     expect(c.buscarVaga(0, 'A3')!.ocupada, isFalse);
   });
 
-  test('celular: aplica as vagas que existem no mapa (A1–A5, B1–B5)', () {
-    final c = mobile.GaragemController();
+  test('celular usa o mesmo mapa do site: aplica as 12 vagas (A1–A6, B1–B6)', () {
+    final c = GaragemController();
     c.aplicarLeitura(LeituraNivel.doDocumento(documento(vagas: vagasDoVideo({'A1', 'A6', 'B5'})))!);
-    expect([for (final v in c.vagas) if (v.ocupada) v.code], ['A1', 'B5']);
+    expect([for (final v in c.vagas) if (v.ocupada) v.code], ['A1', 'A6', 'B5']);
     c.sortear();
-    expect(c.stats.ocupadas, 2);
+    expect(c.stats.ocupadas, 3);
   });
 
   testWidgets('selo mostra câmera ao vivo e offline', (tester) async {
