@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
+import 'carros_controller.dart';
+import 'cena_login.dart';
 import 'garagem_controller.dart';
 import 'garagem_scene.dart';
 import 'meu_carro.dart';
@@ -15,6 +17,7 @@ class MapaPage extends StatelessWidget {
     required this.app,
     required this.garagem,
     required this.meuCarro,
+    required this.carros,
     required this.tema,
     required this.mostrarSair,
     this.reservaInferior = 8,
@@ -23,40 +26,51 @@ class MapaPage extends StatelessWidget {
   final AppState app;
   final GaragemController garagem;
   final MeuCarro meuCarro;
+  final CarrosController carros;
   final TemaController tema;
   final bool mostrarSair;
 
-  /// Folga abaixo dos controles (o círculo da navegação invade a moldura no celular).
   final double reservaInferior;
 
   @override
   Widget build(BuildContext context) {
     final bloco = app.blocoPrincipal;
+    final p = context.paleta;
+    final escuro = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1100),
         child: Container(
           margin: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            border: Border.all(color: context.paleta.moldura, width: 3),
-            borderRadius: BorderRadius.circular(32),
+            color: escuro ? p.superficie : p.lateral,
+            border: Border.all(color: escuro ? p.moldura : Colors.white.withValues(alpha: 0.14)),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 30, offset: const Offset(0, 12)),
+            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(29),
+            borderRadius: BorderRadius.circular(27),
             child: ListenableBuilder(
-              listenable: Listenable.merge([app, garagem, meuCarro]),
+              listenable: Listenable.merge([app, garagem, meuCarro, carros]),
               builder: (context, _) {
                 final stats = garagem.stats;
                 final alerta = app.nivelAtual(bloco, stats.livres);
-                final cena = GaragemScene(controller: garagem, meuCarro: meuCarro);
-                final estado = _FaixaEstado(alerta: alerta, livres: stats.livres, garagem: garagem, meuCarro: meuCarro);
+                final cena = GaragemScene(controller: garagem, meuCarro: meuCarro, carros: carros);
+                final estado = _FaixaEstado(
+                  alerta: alerta,
+                  livres: stats.livres,
+                  garagem: garagem,
+                  meuCarro: meuCarro,
+                  carros: carros,
+                );
                 final controles = _Controles(garagem: garagem);
                 final cartao = _CartaoVagas(bloco: bloco, stats: stats);
 
                 return LayoutBuilder(builder: (context, c) {
                   final lateral = c.maxWidth > c.maxHeight * 1.2 && c.maxHeight < 560;
                   if (lateral) {
-                    // celular deitado: painel à esquerda, mapa ocupa toda a altura
                     return Row(
                       children: [
                         SizedBox(
@@ -83,7 +97,12 @@ class MapaPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                        Expanded(child: cena),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
+                            child: ClipRRect(borderRadius: BorderRadius.circular(20), child: cena),
+                          ),
+                        ),
                       ],
                     );
                   }
@@ -103,15 +122,28 @@ class MapaPage extends StatelessWidget {
                                   _BotaoSair(onTap: app.sair),
                                 ],
                               ),
-                            const Spacer(),
+                            if (c.maxWidth >= 640)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+                                  child: _Cabecalho(bloco: bloco, garagem: garagem),
+                                ),
+                              )
+                            else
+                              const Spacer(),
                             cartao,
                           ],
                         ),
                       ),
-                      Padding(padding: const EdgeInsets.fromLTRB(14, 8, 14, 0), child: estado),
-                      Expanded(child: cena),
+                      Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 0), child: estado),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: ClipRRect(borderRadius: BorderRadius.circular(20), child: cena),
+                        ),
+                      ),
                       Padding(
-                        padding: EdgeInsets.fromLTRB(14, 6, 14, reservaInferior),
+                        padding: EdgeInsets.fromLTRB(14, 10, 14, reservaInferior),
                         child: controles,
                       ),
                     ],
@@ -121,6 +153,63 @@ class MapaPage extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _Cabecalho extends StatelessWidget {
+  const _Cabecalho({required this.bloco, required this.garagem});
+
+  final String bloco;
+  final GaragemController garagem;
+
+  @override
+  Widget build(BuildContext context) {
+    final vista = garagem.modo == Modo.d2 ? 'vista 2D' : 'vista 3D';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(bloco, style: mono(22, peso: FontWeight.w700, cor: Colors.white), overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 2),
+        Text('Nível ${garagem.nivel + 1} · $vista', style: mono(12, cor: CoresCena.textoSuave)),
+        const SizedBox(height: 10),
+        const Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            _Legenda(cor: CoresCena.livre, texto: 'Livre'),
+            _Legenda(cor: CoresCena.ocupada, texto: 'Ocupada'),
+            _Legenda(cor: Color(0xFFFFD93D), texto: 'Meu carro'),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _Legenda extends StatelessWidget {
+  const _Legenda({required this.cor, required this.texto});
+
+  final Color cor;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: cor, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Text(texto, style: mono(11, peso: FontWeight.w600, cor: CoresCena.texto)),
+        ],
       ),
     );
   }
@@ -160,40 +249,64 @@ class _CartaoVagas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.paleta;
     final fracao = stats.total == 0 ? 0.0 : stats.livres / stats.total;
+    final cor = fracao > 0.5 ? CoresCena.livre : (fracao > 0.2 ? Cores.alertaSimples : CoresCena.ocupada);
     return Semantics(
       label: 'Vagas disponíveis no $bloco: ${stats.livres} de ${stats.total}',
       excludeSemantics: true,
       child: Container(
         width: 200,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: context.paleta.superficie, borderRadius: BorderRadius.circular(22)),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: BoxDecoration(
+          color: p.campo,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Vagas Disponíveis\n$bloco', style: mono(14, peso: FontWeight.w700)),
-            const SizedBox(height: 10),
-            Container(
-              height: 26,
-              decoration: BoxDecoration(
-                color: Colors.white, // trilho branco nos dois modos: o texto escuro fica legível sobre a barra amarela
-                border: Border.all(color: context.paleta.texto),
-                borderRadius: BorderRadius.circular(8),
+            Row(
+              children: [
+                Icon(Icons.local_parking_rounded, size: 16, color: p.destaque),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Vagas disponíveis',
+                    style: mono(11, peso: FontWeight.w600, cor: p.textoSuave),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '${stats.livres}', style: mono(28, peso: FontWeight.w700, cor: p.texto)),
+                  TextSpan(text: ' / ${stats.total}', style: mono(14, peso: FontWeight.w600, cor: p.textoSuave)),
+                ]),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
+            ),
+            Text(bloco, style: mono(11, cor: p.textoSuave), overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                height: 8,
                 child: Stack(
-                  alignment: Alignment.center,
                   children: [
+                    Positioned.fill(child: ColoredBox(color: p.textoSuave.withValues(alpha: 0.18))),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: FractionallySizedBox(
                         widthFactor: fracao,
                         heightFactor: 1,
-                        child: const ColoredBox(color: Cores.barra),
+                        child: ColoredBox(color: cor),
                       ),
                     ),
-                    Text('${stats.livres}/${stats.total}', style: mono(13, peso: FontWeight.w700, cor: Cores.texto)),
                   ],
                 ),
               ),
@@ -205,16 +318,21 @@ class _CartaoVagas extends StatelessWidget {
   }
 }
 
-/// Faixa de altura fixa (o mapa não "pula"): alerta em vigor, vaga tocada, "Meu carro" ou uma dica.
 class _FaixaEstado extends StatelessWidget {
-  const _FaixaEstado({required this.alerta, required this.livres, required this.garagem, required this.meuCarro});
+  const _FaixaEstado({
+    required this.alerta,
+    required this.livres,
+    required this.garagem,
+    required this.meuCarro,
+    required this.carros,
+  });
 
   final NivelAlerta? alerta;
   final int livres;
   final GaragemController garagem;
   final MeuCarro meuCarro;
+  final CarrosController carros;
 
-  /// "Estacionei aqui": marca a vaga selecionada como a do usuário (e ocupa a vaga).
   void _estacionarAqui() {
     final v = garagem.selecionada;
     if (v == null) return;
@@ -224,10 +342,9 @@ class _FaixaEstado extends StatelessWidget {
     meuCarro.marcar(garagem.nivel, v.code);
   }
 
-  /// "Já saí": desmarca e libera a vaga.
   void _jaSai() {
     final v = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
-    if (v != null) garagem.liberarVaga(v); // ainda "estacionado": a própria saída não gera aviso
+    if (v != null) garagem.liberarVaga(v);
     meuCarro.limpar();
   }
 
@@ -266,6 +383,23 @@ class _FaixaEstado extends StatelessWidget {
           ],
         ),
       ));
+      final personalizado = v.ocupada ? carros.carroNaVaga(garagem.nivel, v.code) : null;
+      if (personalizado != null) {
+        chips.add(_Chip(
+          cor: context.paleta.superficie,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.directions_car_rounded, size: 16, color: personalizado.carro.cor),
+              const SizedBox(width: 6),
+              Text(
+                personalizado.meu ? personalizado.carro.nome : '${personalizado.carro.nome} · de ${personalizado.dono}',
+                style: mono(12, peso: FontWeight.w700),
+              ),
+            ],
+          ),
+        ));
+      }
       if (!meuCarro.eMinha(garagem.nivel, v.code)) {
         chips.add(_ChipBotao(
           cor: Cores.azulBotao,
@@ -303,7 +437,19 @@ class _FaixaEstado extends StatelessWidget {
       child: chips.isEmpty
           ? Align(
               alignment: Alignment.centerLeft,
-              child: Text('Toque em uma vaga para ver os detalhes', style: mono(11, cor: Colors.white70)),
+              child: Row(
+                children: [
+                  const Icon(Icons.touch_app_rounded, size: 16, color: Colors.white54),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Toque em uma vaga para ver os detalhes',
+                      style: mono(11, cor: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             )
           : ListView.separated(
               scrollDirection: Axis.horizontal,
@@ -315,7 +461,6 @@ class _FaixaEstado extends StatelessWidget {
   }
 }
 
-/// Chip tocável (botão) da faixa de estado.
 class _ChipBotao extends StatelessWidget {
   const _ChipBotao({required this.cor, required this.child, required this.onTap, required this.dica});
 
@@ -332,12 +477,15 @@ class _ChipBotao extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: cor,
-        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(99),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 14),
             child: child,
           ),
         ),
@@ -355,8 +503,12 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
-      decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 14),
+      decoration: BoxDecoration(
+        color: cor,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
       child: child,
     );
   }
@@ -385,7 +537,6 @@ class _Controles extends StatelessWidget {
           selecionado: garagem.nivel,
           onSel: garagem.setNivel,
         ),
-        // nível com câmera: a ocupação vem do vídeo, então não há sorteio
         if (garagem.leituraAtual case final leitura?)
           SeloCamera(leitura: leitura, estilo: mono(12, peso: FontWeight.w700), fundo: context.paleta.superficie)
         else
@@ -405,9 +556,14 @@ class _Pilula extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final escuro = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: context.paleta.superficie, borderRadius: BorderRadius.circular(14)),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: escuro ? context.paleta.campo : context.paleta.superficie,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: (escuro ? Colors.white : Colors.black).withValues(alpha: 0.08)),
+      ),
       child: Row(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
@@ -429,10 +585,20 @@ class _Segmentos extends StatelessWidget {
             button: true,
             selected: i == selecionado,
             child: Material(
-              color: i == selecionado ? Cores.azulBotao : Colors.transparent,
-              borderRadius: BorderRadius.circular(11),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(11),
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              clipBehavior: Clip.antiAlias,
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: i == selecionado
+                      ? LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color.lerp(Cores.azulBotao, Colors.white, 0.14)!, Cores.azulBotao],
+                        )
+                      : null,
+                ),
+                child: InkWell(
                 onTap: () => onSel(i),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: alvoToque - 6, minWidth: 44),
@@ -447,6 +613,7 @@ class _Segmentos extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
               ),
             ),
           ),

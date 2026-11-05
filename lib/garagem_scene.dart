@@ -4,21 +4,24 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'carro_desenho.dart';
+import 'carro_personalizado.dart';
+import 'carros_controller.dart';
+import 'cena_login.dart';
 import 'entorno_bloco_u.dart';
 import 'garagem_controller.dart';
 import 'meu_carro.dart';
 import 'projecao.dart';
 import 'theme.dart';
 
-/// Cena do bloco: vista 2D no estilo do Figma ou vista 3D com carros.
-/// Trata os gestos (arrastar, pinça/scroll para zoom, toque para selecionar).
 class GaragemScene extends StatefulWidget {
-  const GaragemScene({super.key, required this.controller, this.meuCarro});
+  const GaragemScene({super.key, required this.controller, this.meuCarro, this.carros});
 
   final GaragemController controller;
 
-  /// Vaga onde o usuário estacionou (destacada no mapa).
   final MeuCarro? meuCarro;
+
+  final CarrosController? carros;
 
   @override
   State<GaragemScene> createState() => _GaragemSceneState();
@@ -76,6 +79,7 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
                 fundo: context.paleta.fundo,
                 escuro: Theme.of(context).brightness == Brightness.dark,
                 meuCarro: widget.meuCarro,
+                carros: widget.carros,
               ),
             ),
           ),
@@ -93,18 +97,21 @@ class _Face {
 }
 
 class _CenaPainter extends CustomPainter {
-  _CenaPainter(this.c, Listenable repaint, {required this.fundo, required this.escuro, this.meuCarro}) : super(repaint: repaint);
+  _CenaPainter(this.c, Listenable repaint, {required this.fundo, required this.escuro, this.meuCarro, this.carros})
+      : super(repaint: repaint);
 
   final GaragemController c;
   final Color fundo;
-  final bool escuro; // modo escuro: escurece a cena toda por cima
+  final bool escuro;
   final MeuCarro? meuCarro;
+  final CarrosController? carros;
+
+  CarroPersonalizado _carroDa(Vaga v) =>
+      carros?.carroNaVaga(c.nivel, v.code)?.carro ??
+      CarroPersonalizado.padrao(v.corCarro).copyWith(modelo: v.id.isEven ? ModeloCarro.seda : ModeloCarro.hatch);
 
   static const _corLinha = Color(0xFFDEDFD8);
-  static const _corVidro = Color(0xFF1B1E22);
-  static const _corPneu = Color(0xFF0E0F11);
 
-  // Faces visíveis de uma caixa unitária (a face de baixo nunca aparece).
   static const _faces = [
     _Face(V3(1, 0, 0), [V3(1, -1, -1), V3(1, -1, 1), V3(1, 1, 1), V3(1, 1, -1)]),
     _Face(V3(-1, 0, 0), [V3(-1, -1, 1), V3(-1, -1, -1), V3(-1, 1, -1), V3(-1, 1, 1)]),
@@ -117,22 +124,17 @@ class _CenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return; // evita NaN com área vazia
+    if (size.width <= 0 || size.height <= 0) return;
     canvas.drawRect(Offset.zero & size, Paint()..color = fundo);
     final cam = c.camara(size);
     if (c.modo == Modo.d2) {
       _pintar2d(canvas, cam);
     } else {
-      _pintar3d(canvas, cam);
+      _pintar3d(canvas, cam, size);
     }
-    if (escuro) {
-      // modo escuro: véu azul-escuro sobre o chão, os prédios e as vagas
-      canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0x8C050B14));
-    }
-    _destacarMeuCarro(canvas, cam); // por cima do véu: continua bem visível
+    _destacarMeuCarro(canvas, cam);
   }
 
-  /// Destaca a vaga do usuário ("Onde estacionei?"): contorno que pulsa e a etiqueta "Meu carro".
   void _destacarMeuCarro(Canvas canvas, Camara cam) {
     final m = meuCarro;
     if (m == null || !m.estacionado || m.nivel != c.nivel) return;
@@ -141,7 +143,7 @@ class _CenaPainter extends CustomPainter {
     const amarelo = Color(0xFFFFD93D);
     final pulso = 0.5 + 0.5 * math.sin(DateTime.now().millisecondsSinceEpoch / 260);
     final d2 = c.modo == Modo.d2;
-    final w = d2 ? ConfigPatio.vagaLarg2d : ConfigPatio.spotW - 0.2;
+    final w = ConfigPatio.spotW - 0.2;
     final d = d2 ? ConfigPatio.vagaProf2d : ConfigPatio.spotD - 0.4;
     final pts = cam.poligono([
       V3(v.x - w / 2, 0.05, v.z - d / 2),
@@ -182,51 +184,157 @@ class _CenaPainter extends CustomPainter {
     tp.paint(canvas, caixa.center - Offset(tp.width / 2, tp.height / 2));
   }
 
-  // ---------- 2D (Figma): vagas lisas verde/vermelho, divisórias brancas e moldura ----------
-
   void _pintar2d(Canvas canvas, Camara cam) {
     final a = cam.ponto(const V3(-ConfigPatio.quadroMeiaLargura, 0, -ConfigPatio.quadroMeiaAltura));
     final b = cam.ponto(const V3(ConfigPatio.quadroMeiaLargura, 0, ConfigPatio.quadroMeiaAltura));
-    if (a != null && b != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromPoints(a, b), const Radius.circular(12)),
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5,
-      );
-    }
+    final origem = cam.ponto(const V3(0, 0, 0));
+    final umMetro = cam.ponto(const V3(1, 0, 0));
+    if (a == null || b == null || origem == null || umMetro == null) return;
+    final s = (umMetro - origem).distance;
+    if (s <= 0) return;
+
+    final quadro = RRect.fromRectAndRadius(Rect.fromPoints(a, b), Radius.circular(0.7 * s));
+    canvas.drawRRect(quadro, Paint()..color = Colors.white.withValues(alpha: 0.025));
+    canvas.drawRRect(
+      quadro,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withValues(alpha: 0.14),
+    );
+    final canteiro = Rect.fromCenter(
+      center: origem,
+      width: math.max(0.0, (b.dx - a.dx) - 1.4 * s),
+      height: ConfigPatio.aisle * 0.5 * s,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(canteiro, Radius.circular(0.4 * s)),
+      Paint()..color = CoresCena.livre.withValues(alpha: 0.06),
+    );
+
+    final linha = Paint()
+      ..color = CoresCena.texto.withValues(alpha: 0.28)
+      ..strokeWidth = math.max(1.0, 0.05 * s);
+    final tamanhoTexto = (0.34 * s).clamp(8.0, 13.0);
 
     for (final v in c.vagas) {
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.vagaLarg2d, ConfigPatio.vagaProf2d, 0.02,
-          v.ocupada ? Cores.ocupada : Cores.livre);
-      if (v.id % ConfigPatio.cols != ConfigPatio.cols - 1) {
-        _retanguloPlano(
-            canvas, cam, v.x + ConfigPatio.spotW / 2, v.z, 0.12, ConfigPatio.vagaProf2d, 0.03, Colors.white);
+      final centro = cam.ponto(V3(v.x, 0, v.z));
+      if (centro == null) continue;
+      final cima = v.z < 0;
+      final cor = v.ocupada ? CoresCena.ocupada : CoresCena.livre;
+      final largura = ConfigPatio.spotW * s;
+      final profundidade = ConfigPatio.vagaProf2d * s;
+      final r = Rect.fromCenter(center: centro, width: largura, height: profundidade);
+      final yInterno = cima ? r.bottom : r.top;
+      final yEntrada = cima ? r.top : r.bottom;
+      final paraDentro = cima ? 1.0 : -1.0;
+
+      canvas.drawRect(r.deflate(0.08 * s), Paint()..color = cor.withValues(alpha: 0.10));
+
+      canvas.drawLine(Offset(r.left, r.top), Offset(r.left, r.bottom), linha);
+      if (v.id % ConfigPatio.cols == ConfigPatio.cols - 1) {
+        canvas.drawLine(Offset(r.right, r.top), Offset(r.right, r.bottom), linha);
+      }
+      canvas.drawLine(Offset(r.left, yInterno), Offset(r.right, yInterno), linha);
+
+      final led = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(centro.dx, yInterno - paraDentro * 0.32 * s),
+          width: largura * 0.5,
+          height: math.max(2.0, 0.13 * s),
+        ),
+        Radius.circular(math.max(1.0, 0.07 * s)),
+      );
+      canvas.drawRRect(led.inflate(0.2 * s), Paint()..color = cor.withValues(alpha: 0.10));
+      canvas.drawRRect(led.inflate(0.09 * s), Paint()..color = cor.withValues(alpha: 0.22));
+      canvas.drawRRect(led, Paint()..color = cor);
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: v.code,
+          style: mono(tamanhoTexto, peso: FontWeight.w600, cor: CoresCena.texto.withValues(alpha: 0.45)),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(centro.dx - tp.width / 2, yEntrada + paraDentro * 0.32 * s - (cima ? 0 : tp.height)));
+      tp.dispose();
+
+      if (v.ocupada) {
+        desenharCarro2d(
+          canvas,
+          Offset(centro.dx, centro.dy + paraDentro * 0.1 * s),
+          cima ? math.pi / 2 : -math.pi / 2,
+          _carroDa(v),
+          0.8 * s,
+        );
+      }
+    }
+
+    final sel = c.selecionada;
+    if (sel != null) {
+      final centro = cam.ponto(V3(sel.x, 0, sel.z));
+      if (centro != null) {
+        final r = Rect.fromCenter(
+          center: centro,
+          width: ConfigPatio.spotW * s - 0.2 * s,
+          height: ConfigPatio.vagaProf2d * s - 0.2 * s,
+        );
+        final q = math.min(r.width, r.height) * 0.22;
+        canvas.drawPath(
+          Path()
+            ..moveTo(r.left, r.top + q)
+            ..lineTo(r.left, r.top)
+            ..lineTo(r.left + q, r.top)
+            ..moveTo(r.right - q, r.top)
+            ..lineTo(r.right, r.top)
+            ..lineTo(r.right, r.top + q)
+            ..moveTo(r.right, r.bottom - q)
+            ..lineTo(r.right, r.bottom)
+            ..lineTo(r.right - q, r.bottom)
+            ..moveTo(r.left + q, r.bottom)
+            ..lineTo(r.left, r.bottom)
+            ..lineTo(r.left, r.bottom - q),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = math.max(2.0, 0.09 * s)
+            ..strokeCap = StrokeCap.round
+            ..color = CoresCena.varredura,
+        );
       }
     }
   }
 
-  // ---------- 3D: trecho do Bloco U com o entorno real e carros nas vagas ocupadas ----------
-
-  void _pintar3d(Canvas canvas, Camara cam) {
+  void _pintar3d(Canvas canvas, Camara cam, Size size) {
     _pintarChaoEntorno(canvas, cam);
-
-    for (final v in c.vagas) {
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.18, ConfigPatio.spotD - 0.3, 0.01, _corLinha,
-          contorno: true);
-      final cor = v.ocupada ? Cores.ocupada.withValues(alpha: 0.55) : Cores.livre.withValues(alpha: 0.5);
-      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.5, ConfigPatio.spotD - 0.9, 0.02, cor);
+    if (escuro) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0x8C050B14));
     }
 
-    // objetos 3D ordenados do mais longe para o mais perto (algoritmo do pintor)
+    for (final v in c.vagas) {
+      final cor = v.ocupada ? CoresCena.ocupada : CoresCena.livre;
+      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.12, ConfigPatio.spotD - 0.2, 0.01,
+          cor.withValues(alpha: 0.16));
+      _retanguloPlano(canvas, cam, v.x, v.z, ConfigPatio.spotW - 0.18, ConfigPatio.spotD - 0.3, 0.012,
+          _corLinha.withValues(alpha: 0.45),
+          contorno: true);
+      final zLed = v.z + _paraCanteiro(v) * (ConfigPatio.spotD / 2 - 0.4);
+      _retanguloPlano(canvas, cam, v.x, zLed, 1.5, 0.55, 0.02, cor.withValues(alpha: 0.12));
+      _retanguloPlano(canvas, cam, v.x, zLed, 1.35, 0.32, 0.022, cor.withValues(alpha: 0.25));
+      _retanguloPlano(canvas, cam, v.x, zLed, 1.2, 0.14, 0.025, cor);
+    }
+
+    for (final v in c.vagas.where((v) => v.ocupada)) {
+      desenharChaoCarro3d(canvas, cam, V3(v.x, 0, v.z), v.giro, _carroDa(v));
+    }
+
+    final corPredio = escuro ? Color.lerp(Cores.predio3d, const Color(0xFF050B14), 0.5)! : Cores.predio3d;
     final itens = <(double, VoidCallback)>[];
     for (final p in EntornoBlocoU.predios) {
       final centro = p.centro, tam = p.tamanho;
-      itens.add((_distanciaCaixa(cam, centro, tam), () => _caixa(canvas, cam, centro, tam, 0, Cores.predio3d)));
+      itens.add((_distanciaCaixa(cam, centro, tam), () => _caixa(canvas, cam, centro, tam, 0, corPredio)));
     }
     for (final v in c.vagas.where((v) => v.ocupada)) {
-      itens.add((cam.distancia(V3(v.x, 0.5, v.z)), () => _carro(canvas, cam, v)));
+      itens.add((cam.distancia(V3(v.x, 0.5, v.z)), () => desenharCarro3d(canvas, cam, V3(v.x, 0, v.z), v.giro, _carroDa(v))));
     }
     itens.sort((a, b) => b.$1.compareTo(a.$1));
     for (final item in itens) {
@@ -236,9 +344,43 @@ class _CenaPainter extends CustomPainter {
     for (final v in c.vagas) {
       _rotulo(canvas, cam, v);
     }
+
+    final sel = c.selecionada;
+    if (sel != null) {
+      _cantoneiras(canvas, cam, sel.x, sel.z, ConfigPatio.spotW - 0.1, ConfigPatio.spotD - 0.2, CoresCena.varredura);
+    }
   }
 
-  /// Chão do entorno: vias, calçadas, canteiro e o resto das vagas (só contorno).
+  double _paraCanteiro(Vaga v) => v.z < 0 ? 1.0 : -1.0;
+
+  void _cantoneiras(Canvas canvas, Camara cam, double cx, double cz, double w, double d, Color cor) {
+    const q = 0.7;
+    final pintura = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..color = cor;
+    final cantos = [
+      (cx - w / 2, cz - d / 2, 1.0, 1.0),
+      (cx + w / 2, cz - d / 2, -1.0, 1.0),
+      (cx + w / 2, cz + d / 2, -1.0, -1.0),
+      (cx - w / 2, cz + d / 2, 1.0, -1.0),
+    ];
+    for (final (x, z, sx, sz) in cantos) {
+      final canto = cam.ponto(V3(x, 0.04, z));
+      final ax = cam.ponto(V3(x + sx * q, 0.04, z));
+      final az = cam.ponto(V3(x, 0.04, z + sz * q));
+      if (canto == null || ax == null || az == null) continue;
+      canvas.drawPath(
+        Path()
+          ..moveTo(ax.dx, ax.dy)
+          ..lineTo(canto.dx, canto.dy)
+          ..lineTo(az.dx, az.dy),
+        pintura,
+      );
+    }
+  }
+
   void _pintarChaoEntorno(Canvas canvas, Camara cam) {
     void area(AreaPlanta a, Color cor) =>
         _retanguloPlano(canvas, cam, a.cx, a.cz, a.largura, a.profundidade, 0, cor);
@@ -260,7 +402,6 @@ class _CenaPainter extends CustomPainter {
     }
   }
 
-  /// Distância da câmera ao ponto mais próximo da caixa (ordena prédios grandes melhor que o centro).
   double _distanciaCaixa(Camara cam, V3 centro, V3 tam) {
     final o = cam.olho;
     return cam.distancia(V3(
@@ -324,37 +465,36 @@ class _CenaPainter extends CustomPainter {
     }
   }
 
-  void _carro(Canvas canvas, Camara cam, Vaga v) {
-    final base = V3(v.x, 0, v.z);
-    V3 mundo(V3 local) => base + _girar(local, v.giro);
-
-    // rodas e corpo ordenados por distância; a cabine fica sempre por cima
-    final partes = <(double, V3, V3, Color)>[];
-    for (final sx in [-1.0, 1.0]) {
-      for (final sz in [-1.0, 1.0]) {
-        final centro = mundo(V3(sx * 0.82, 0.32, sz * 1.15));
-        partes.add((cam.distancia(centro), centro, const V3(0.3, 0.64, 0.64), _corPneu));
-      }
-    }
-    final corpo = mundo(const V3(0, 0.5, 0));
-    partes.add((cam.distancia(corpo), corpo, const V3(1.7, 0.62, 3.5), v.corCarro));
-    partes.sort((a, b) => b.$1.compareTo(a.$1));
-    for (final p in partes) {
-      _caixa(canvas, cam, p.$2, p.$3, v.giro, p.$4);
-    }
-    _caixa(canvas, cam, mundo(const V3(0, 0.93, -0.25)), const V3(1.4, 0.5, 1.7), v.giro, _corVidro);
-  }
-
   void _rotulo(Canvas canvas, Camara cam, Vaga v) {
-    final p = cam.ponto(V3(v.x, 1.55, v.z));
+    final personalizado = v.ocupada ? carros?.carroNaVaga(c.nivel, v.code) : null;
+    final p = cam.ponto(V3(v.x, personalizado == null ? 1.55 : 2.05, v.z));
     if (p == null) return;
+    final texto = personalizado == null ? v.code : '${v.code} · ${personalizado.carro.nome}';
     final tp = TextPainter(
-      text: TextSpan(text: v.code, style: mono(11, cor: const Color.fromRGBO(255, 255, 255, 0.9))),
+      text: TextSpan(text: texto, style: mono(11, peso: FontWeight.w700, cor: CoresCena.texto)),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
+    const bolinha = 6.0;
+    final largura = tp.width + bolinha + 18;
+    final caixa = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: p, width: largura, height: tp.height + 6),
+      Radius.circular((tp.height + 6) / 2),
+    );
+    final cor = v.ocupada ? CoresCena.ocupada : CoresCena.livre;
+    canvas.drawRRect(caixa, Paint()..color = const Color(0xCC0A1220));
+    canvas.drawRRect(
+      caixa,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = cor.withValues(alpha: 0.6),
+    );
+    canvas.drawCircle(Offset(caixa.left + 7 + bolinha / 2, p.dy), bolinha / 2, Paint()..color = cor);
+    tp.paint(canvas, Offset(caixa.left + 7 + bolinha + 4, p.dy - tp.height / 2));
+    tp.dispose();
   }
 
   @override
-  bool shouldRepaint(covariant _CenaPainter old) => old.c != c || old.fundo != fundo || old.escuro != escuro || old.meuCarro != meuCarro;
+  bool shouldRepaint(covariant _CenaPainter old) =>
+      old.c != c || old.fundo != fundo || old.escuro != escuro || old.meuCarro != meuCarro || old.carros != carros;
 }
