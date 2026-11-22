@@ -66,3 +66,8 @@ eventos*.csv
 # chave da conta de serviço do Firebase: dá acesso total ao banco, NUNCA vai para o Git
 firebase-chave.json
 *-firebase-adminsdk-*.json
+
+# backend / variáveis de ambiente
+.env
+backend/.env
+node_modules/

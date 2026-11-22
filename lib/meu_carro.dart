@@ -3,20 +3,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Onde o usuário estacionou ("Onde estacionei?"). Fica salvo no aparelho, então continua
-/// lá mesmo fechando o app.
+/// Onde o usuário estacionou ("Onde parei?"), para o mapa destacar a vaga.
 class MeuCarro extends ChangeNotifier {
-  static const _chave = 'meu_carro_v1';
+  static const _chave = 'meu_carro_v2';
 
-  int? _nivel; // 0 = Nível 1
   String? _codigo;
   DateTime? _desde;
+  String? _carroId;
+  String? _registroId;
 
   /// `true` quando o usuário marcou uma vaga.
-  bool get estacionado => _nivel != null && _codigo != null;
-
-  /// Nível da vaga (0 = Nível 1).
-  int? get nivel => _nivel;
+  bool get estacionado => _codigo != null;
 
   /// Código da vaga, por exemplo "A3".
   String? get codigo => _codigo;
@@ -24,28 +21,36 @@ class MeuCarro extends ChangeNotifier {
   /// Quando o usuário marcou a vaga.
   DateTime? get desde => _desde;
 
-  /// A vaga [codigo] do [nivel] é a do usuário?
-  bool eMinha(int nivel, String codigo) => estacionado && _nivel == nivel && _codigo == codigo;
+  /// Carro do usuário que está na vaga (`cars._id`), se conhecido.
+  String? get carroId => _carroId;
 
-  void marcar(int nivel, String codigo, {DateTime? agora}) {
-    _nivel = nivel;
+  /// Registro ativo no banco (`parkings._id`), usado para dar baixa na saída.
+  String? get registroId => _registroId;
+
+  /// A vaga [codigo] é a do usuário?
+  bool eMinha(String codigo) => estacionado && _codigo == codigo;
+
+  void marcar(String codigo, {DateTime? agora, String? carroId, String? registroId}) {
     _codigo = codigo;
     _desde = agora ?? DateTime.now();
+    _carroId = carroId;
+    _registroId = registroId;
     notifyListeners();
     _salvar();
   }
 
   void limpar() {
     if (!estacionado) return;
-    _nivel = null;
     _codigo = null;
     _desde = null;
+    _carroId = null;
+    _registroId = null;
     notifyListeners();
     _salvar();
   }
 
-  /// "A3 · Nível 1".
-  String get rotulo => estacionado ? '$_codigo · Nível ${_nivel! + 1}' : '';
+  /// "A3".
+  String get rotulo => _codigo ?? '';
 
   /// "há 25 min", "há 2 h 10 min" (tempo desde que estacionou).
   String tempoTexto([DateTime? agora]) {
@@ -64,8 +69,9 @@ class MeuCarro extends ChangeNotifier {
       final texto = prefs.getString(_chave);
       if (texto != null) {
         final m = jsonDecode(texto) as Map<String, dynamic>;
-        _nivel = m['nivel'] as int?;
         _codigo = m['codigo'] as String?;
+        _carroId = m['carroId'] as String?;
+        _registroId = m['registroId'] as String?;
         final ms = m['desde'] as int?;
         _desde = ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
         notifyListeners();
@@ -83,7 +89,12 @@ class MeuCarro extends ChangeNotifier {
       } else {
         await prefs.setString(
           _chave,
-          jsonEncode({'nivel': _nivel, 'codigo': _codigo, 'desde': _desde?.millisecondsSinceEpoch}),
+          jsonEncode({
+            'codigo': _codigo,
+            'carroId': _carroId,
+            'registroId': _registroId,
+            'desde': _desde?.millisecondsSinceEpoch,
+          }),
         );
       }
     } catch (_) {}

@@ -10,9 +10,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_state.dart';
 import 'auth_service.dart';
 import 'banner_aviso.dart';
-import 'carros_controller.dart';
+import 'carros_usuario.dart';
+import 'estacionamentos.dart';
 import 'garagem_controller.dart';
-import 'historico.dart';
 import 'localizacao.dart';
 import 'login_page.dart';
 import 'meu_carro.dart';
@@ -63,12 +63,12 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   final _mensageiro = GlobalKey<ScaffoldMessengerState>();
   final _vagas = RastreadorVagas();
   final _meuCarro = MeuCarro();
-  late final _carros = CarrosController(meuCarro: _meuCarro, semFirebase: widget.semFirebase);
-  final _historico = HistoricoOcupacao();
+  // carros do usuário (placa/modelo/cor) e registros de onde ele parou: vêm da API (MongoDB)
+  final _carrosUsuario = CarrosUsuarioController();
+  late final _estacionamentos = EstacionamentosController(meuCarro: _meuCarro);
   late final _aoVivo = OcupacaoAoVivo(_garagem.aplicarLeitura);
   final _campus = LocalizacaoCampus();
   bool _campusIniciado = false;
-  Timer? _amostragem;
   NivelAlerta? _nivelAnterior;
   bool _splash = true;
 
@@ -80,20 +80,16 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
     }
     _tema.carregar();
     _meuCarro.carregar();
-    _carros.carregar();
-    _historico.carregar();
     _notif.carregarPreferencias();
     _notif.motivoBloqueio = () => motivoSemAviso(
           carro: _meuCarro,
           campus: _campus,
           somenteNaFaculdade: _notif.somenteNaFaculdade,
         );
-    _amostragem = Timer.periodic(const Duration(minutes: 5), (_) => _amostrar());
     _notif.aoChegar = (n) => mostrarBannerAviso(_mensageiro.currentState, n);
     _garagem.addListener(_verificarAlertas);
     _app.addListener(_verificarAlertas);
     _app.addListener(_sincronizarAoVivo);
-    _app.addListener(_sincronizarCarros);
     Future.delayed(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _splash = false);
     });
@@ -102,24 +98,12 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
   void _sincronizarAoVivo() {
     if (_app.logado && !widget.semFirebase) {
       _aoVivo.iniciar();
+      // as rotas da API exigem login, então as listas só carregam aqui
+      _carrosUsuario.carregar();
+      _estacionamentos.carregar();
     } else {
       _aoVivo.parar();
     }
-  }
-
-  void _sincronizarCarros() {
-    if (_app.logado && !widget.semFirebase) {
-      _carros.iniciar(_app.usuario ?? '');
-    } else if (_carros.conectado) {
-      _carros.parar();
-    }
-  }
-
-  void _amostrar() {
-    if (!_app.logado) return;
-    _historico.registrar(ocupacaoGeral([
-      for (final n in _garagem.niveis) [for (final v in n) v.ocupada],
-    ]));
   }
 
   void _verificarAlertas() {
@@ -128,13 +112,12 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
       _campusIniciado = true;
       _campus.iniciar();
     }
-    _amostrar();
     final bloco = _app.blocoPrincipal;
-    for (var n = 0; n < _garagem.niveis.length; n++) {
-      final vs = _garagem.niveis[n];
-      final liberadas = _vagas.desocupadas(n, [for (final v in vs) v.code], [for (final v in vs) v.ocupada]);
-      _notif.vagasDesocupadas(bloco, n + 1, liberadas);
-    }
+    final vs = _garagem.vagas;
+    _notif.vagasDesocupadas(
+      bloco,
+      _vagas.desocupadas([for (final v in vs) v.code], [for (final v in vs) v.ocupada]),
+    );
     final livres = _garagem.stats.livres;
     final nivel = _app.nivelAtual(bloco, livres);
     if (nivel == _nivelAnterior) return;
@@ -159,13 +142,11 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
 
   @override
   void dispose() {
-    _amostragem?.cancel();
     _aoVivo.parar();
     _app.removeListener(_sincronizarAoVivo);
-    _app.removeListener(_sincronizarCarros);
-    _carros.dispose();
+    _carrosUsuario.dispose();
+    _estacionamentos.dispose();
     _meuCarro.dispose();
-    _historico.dispose();
     _campus.dispose();
     _garagem.removeListener(_verificarAlertas);
     _app.removeListener(_verificarAlertas);
@@ -209,9 +190,9 @@ class _VagaVisionAppState extends State<VagaVisionApp> {
                         tema: _tema,
                         notif: _notif,
                         meuCarro: _meuCarro,
-                        historico: _historico,
                         campus: _campus,
-                        carros: _carros,
+                        carrosUsuario: _carrosUsuario,
+                        estacionamentos: _estacionamentos,
                       )
                     : LoginPage(key: const ValueKey('login'), app: _app, semFirebase: widget.semFirebase),
               ),

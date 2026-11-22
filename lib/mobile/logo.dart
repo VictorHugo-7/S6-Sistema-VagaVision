@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Logo do VagaVision (olho/escudo) desenhado em código.
-/// Aproximação do desenho do Figma; para fidelidade total, exporte o logo como SVG
-/// e use o pacote flutter_svg.
 class LogoVagaVision extends StatelessWidget {
   const LogoVagaVision({super.key, this.largura = 84, this.cor = Colors.white});
 

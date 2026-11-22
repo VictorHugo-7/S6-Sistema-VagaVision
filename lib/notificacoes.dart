@@ -80,13 +80,13 @@ class NotificacoesController extends ChangeNotifier {
 
   /// Avisa que [codigos] acabaram de ser desocupadas (se esse aviso estiver ligado).
   /// Várias de uma vez (ex.: "Liberar todas") viram uma notificação só.
-  void vagasDesocupadas(String bloco, int nivel, List<String> codigos) {
+  void vagasDesocupadas(String bloco, List<String> codigos) {
     if (!_avisarVagaLivre || codigos.isEmpty) return;
     if (codigos.length == 1) {
-      adicionar('Vaga ${codigos.first} desocupada', '$bloco · Nível $nivel: a vaga ficou livre.',
+      adicionar('Vaga ${codigos.first} desocupada', '$bloco: a vaga ficou livre.',
           tipo: TipoNotificacao.livre);
     } else {
-      adicionar('${codigos.length} vagas desocupadas', '$bloco · Nível $nivel: ${codigos.join(', ')}.',
+      adicionar('${codigos.length} vagas desocupadas', '$bloco: ${codigos.join(', ')}.',
           tipo: TipoNotificacao.livre);
     }
   }
@@ -130,13 +130,13 @@ String quandoTexto(DateTime t, [DateTime? agora]) {
 
 /// Descobre quais vagas deixaram de estar ocupadas entre uma leitura e a seguinte.
 class RastreadorVagas {
-  final _antes = <int, List<bool>>{};
+  List<bool>? _antes;
 
-  /// Compara a ocupação atual do [nivel] com a última vista e devolve os códigos das vagas que
-  /// passaram de ocupada para livre. A primeira leitura de cada nível só memoriza.
-  List<String> desocupadas(int nivel, List<String> codigos, List<bool> ocupadas) {
-    final antes = _antes[nivel];
-    _antes[nivel] = List<bool>.of(ocupadas);
+  /// Compara a ocupação atual com a última vista e devolve os códigos das vagas que
+  /// passaram de ocupada para livre. A primeira leitura só memoriza.
+  List<String> desocupadas(List<String> codigos, List<bool> ocupadas) {
+    final antes = _antes;
+    _antes = List<bool>.of(ocupadas);
     if (antes == null || antes.length != ocupadas.length || codigos.length != ocupadas.length) return const [];
     return [
       for (var i = 0; i < ocupadas.length; i++)
@@ -146,9 +146,6 @@ class RastreadorVagas {
 }
 
 /// Motivo para NÃO mandar avisos de vaga agora, ou `null` se pode avisar.
-///
-/// - Carro já estacionado: o usuário não precisa mais de vaga.
-/// - Fora da faculdade (ou sem localização), quando [somenteNaFaculdade] está ligado.
 String? motivoSemAviso({
   required MeuCarro carro,
   required LocalizacaoCampus campus,

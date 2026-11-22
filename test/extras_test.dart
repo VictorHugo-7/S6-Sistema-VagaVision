@@ -6,12 +6,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:garagem_central/main.dart';
 import 'package:garagem_central/auth_service.dart';
 import 'package:garagem_central/garagem_controller.dart';
-import 'package:garagem_central/historico.dart';
 import 'package:garagem_central/localizacao.dart';
 import 'package:garagem_central/login_email.dart';
 import 'package:garagem_central/meu_carro.dart';
+import 'package:garagem_central/placa.dart';
 import 'package:garagem_central/notificacoes.dart';
-import 'package:garagem_central/painel_analise.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -41,56 +40,20 @@ void main() {
   test('vaga desocupada: rastreador e chave de aviso', () {
     final r = RastreadorVagas();
     final cod = ['A1', 'A2', 'A3'];
-    expect(r.desocupadas(0, cod, [true, true, false]), isEmpty);
-    expect(r.desocupadas(0, cod, [false, true, false]), ['A1']);
-    expect(r.desocupadas(0, cod, [false, true, false]), isEmpty);
-    expect(r.desocupadas(0, cod, [false, false, true]), ['A2']);
+    expect(r.desocupadas(cod, [true, true, false]), isEmpty);
+    expect(r.desocupadas(cod, [false, true, false]), ['A1']);
+    expect(r.desocupadas(cod, [false, true, false]), isEmpty);
+    expect(r.desocupadas(cod, [false, false, true]), ['A2']);
 
     final c = NotificacoesController();
-    c.vagasDesocupadas('Bloco U', 1, ['A1']);
+    c.vagasDesocupadas('Bloco U', ['A1']);
     expect(c.itens.first.titulo, 'Vaga A1 desocupada');
     expect(c.itens.first.tipo, TipoNotificacao.livre);
-    c.vagasDesocupadas('Bloco U', 2, ['B1', 'B2']);
+    c.vagasDesocupadas('Bloco U', ['B1', 'B2']);
     expect(c.itens.first.titulo, '2 vagas desocupadas');
     c.definirAvisarVagaLivre(false);
-    c.vagasDesocupadas('Bloco U', 1, ['A9']);
+    c.vagasDesocupadas('Bloco U', ['A9']);
     expect(c.itens.length, 2);
-  });
-
-  test('histórico: segue a curva típica e passa a seguir os dados reais', () {
-    SharedPreferences.setMockInitialValues({});
-    final h = HistoricoOcupacao(intervaloMinimo: Duration.zero);
-    expect(h.ocupacaoEsperada(3, 9), closeTo(HistoricoOcupacao.curvaBase(3, 9), 1e-9));
-    expect(h.ocupacaoEsperada(7, 9), lessThan(h.ocupacaoEsperada(3, 9)));
-    expect(h.leituras, 0);
-    expect(h.confiavel, isFalse);
-
-    final quarta9h = DateTime(2026, 10, 21, 9, 30);
-    for (var i = 0; i < 30; i++) {
-      h.registrar(0.0, agora: quarta9h.add(Duration(seconds: i)));
-    }
-    expect(h.leituras, 30);
-    expect(h.ocupacaoEsperada(3, 9), lessThan(0.15));
-    expect(h.ocupacaoEsperada(3, 10), closeTo(HistoricoOcupacao.curvaBase(3, 10), 1e-9));
-
-    final pico = h.picoDoDia(3);
-    expect(pico.hora, isNot(9));
-    expect(h.melhorHoraDoDia(3).ocupacao, lessThanOrEqualTo(pico.ocupacao));
-
-    final prev = h.previsao(DateTime(2026, 10, 21, 14, 20), horas: 3);
-    expect(prev.map((p) => p.hora), [15, 16, 17]);
-    expect(h.proximaLotacao(DateTime(2026, 10, 21, 14), limite: 0.85)?.hora, 19);
-    expect(h.proximaLotacao(DateTime(2026, 10, 21, 14), limite: 0.99), isNull);
-
-    final h2 = HistoricoOcupacao(intervaloMinimo: const Duration(seconds: 20));
-    expect(h2.registrar(0.5, agora: quarta9h), isTrue);
-    expect(h2.registrar(0.9, agora: quarta9h.add(const Duration(seconds: 5))), isFalse);
-    expect(h2.leituras, 1);
-  });
-
-  test('histórico: ocupacaoGeral soma todos os níveis', () {
-    expect(ocupacaoGeral([[true, false], [true, true]]), 0.75);
-    expect(ocupacaoGeral(const []), 0);
   });
 
   test('onde estacionei: marca, mostra o tempo e limpa', () {
@@ -98,11 +61,13 @@ void main() {
     final m = MeuCarro();
     expect(m.estacionado, isFalse);
     final t = DateTime(2026, 10, 21, 10);
-    m.marcar(1, 'A3', agora: t);
+    m.marcar('A3', agora: t, carroId: 'c1', registroId: 'r1');
     expect(m.estacionado, isTrue);
-    expect(m.rotulo, 'A3 · Nível 2');
-    expect(m.eMinha(1, 'A3'), isTrue);
-    expect(m.eMinha(0, 'A3'), isFalse);
+    expect(m.rotulo, 'A3');
+    expect(m.carroId, 'c1');
+    expect(m.registroId, 'r1');
+    expect(m.eMinha('A3'), isTrue);
+    expect(m.eMinha('B1'), isFalse);
     expect(m.tempoTexto(t.add(const Duration(minutes: 25))), 'há 25 min');
     expect(m.tempoTexto(t.add(const Duration(minutes: 130))), 'há 2 h 10 min');
     m.limpar();
@@ -111,52 +76,33 @@ void main() {
 
   test('controlador: buscar, ocupar, liberar e ir até a vaga', () {
     final g = GaragemController();
-    final v = g.buscarVaga(1, 'A1')!;
+    final v = g.buscarVaga('A1')!;
     g.liberarVaga(v);
     expect(v.ocupada, isFalse);
     g.ocupar(v);
     expect(v.ocupada, isTrue);
-    g.irParaVaga(1, 'A1');
-    expect(g.nivel, 1);
+    g.irParaVaga('A1');
     expect(g.selecionada, v);
-    expect(g.buscarVaga(9, 'A1'), isNull);
-    expect(g.buscarVaga(0, 'Z9'), isNull);
+    expect(g.buscarVaga('Z9'), isNull);
   });
 
-  testWidgets('painel mostra previsão, gráfico e média por dia', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    tester.view.physicalSize = const Size(600, 1800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+  test('placa: aceita o modelo antigo e o Mercosul, recusa o resto', () {
+    expect(placaValida('ABC1234'), isTrue);
+    expect(placaValida('abc-1234'), isTrue);
+    expect(placaValida('ABC1D23'), isTrue);
+    expect(placaValida('BRA0S17'), isTrue);
+    expect(placaValida('AB1234'), isFalse);
+    expect(placaValida('ABCD123'), isFalse);
+    expect(placaValida('1234ABC'), isFalse);
+    expect(placaValida(''), isFalse);
 
-    final h = HistoricoOcupacao();
-    final estilo = EstiloPainel(
-      texto: Colors.black,
-      suave: Colors.grey,
-      cartao: Colors.white,
-      destaque: Colors.blue,
-      livre: Colors.green,
-      medio: Colors.yellow,
-      ocupada: Colors.red,
-      fonte: (t, {peso, cor}) => TextStyle(fontSize: t, fontWeight: peso, color: cor),
-    );
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: SingleChildScrollView(
-          child: PainelAnalise(historico: h, estilo: estilo, ocupacaoAtual: 0.5, agora: DateTime(2026, 10, 21, 14)),
-        ),
-      ),
-    ));
-    expect(find.text('Previsão de lotação'), findsOneWidget);
-    expect(find.text('Ocupação por hora'), findsOneWidget);
-    expect(find.text('Média por dia da semana'), findsOneWidget);
-    expect(find.text('50%'), findsOneWidget);
-    expect(find.textContaining('Deve lotar'), findsOneWidget);
-    expect(find.textContaining('Estimativa inicial'), findsOneWidget);
-    await tester.tap(find.text('Dom').first);
-    await tester.pump();
-    expect(tester.takeException(), isNull);
+    expect(normalizarPlaca('abc-1d23'), 'ABC1D23');
+    expect(formatarPlaca('ABC1234'), 'ABC-1234');
+    expect(formatarPlaca('ABC1D23'), 'ABC1D23');
+    expect(erroPlaca(null), 'Informe a placa.');
+    expect(erroPlaca('ABC1234'), isNull);
   });
+
 
   test('localização: distância e estados dentro/fora/sem permissão', () async {
     expect(LocalizacaoCampus.distanciaEntre(0, 0, 0, 0), 0);
@@ -186,27 +132,27 @@ void main() {
     final n = NotificacoesController();
     n.motivoBloqueio = () => motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: n.somenteNaFaculdade);
 
-    n.vagasDesocupadas('Bloco U', 1, ['A1']);
+    n.vagasDesocupadas('Bloco U', ['A1']);
     expect(n.itens, isEmpty);
 
     await campus.verificar();
-    n.vagasDesocupadas('Bloco U', 1, ['A1']);
+    n.vagasDesocupadas('Bloco U', ['A1']);
     expect(n.itens.length, 1);
 
-    carro.marcar(0, 'A2');
-    n.vagasDesocupadas('Bloco U', 1, ['A3']);
+    carro.marcar('A2');
+    n.vagasDesocupadas('Bloco U', ['A3']);
     expect(n.itens.length, 1);
     expect(statusDosAvisos(carro: carro, campus: campus, somenteNaFaculdade: true), contains('avisos pausados'));
     carro.limpar();
 
     leitura = const LeituraLocal(latitude: -23.55, longitude: -46.63);
     await campus.verificar();
-    n.vagasDesocupadas('Bloco U', 1, ['A4']);
+    n.vagasDesocupadas('Bloco U', ['A4']);
     expect(n.itens.length, 1);
     expect(motivoSemAviso(carro: carro, campus: campus, somenteNaFaculdade: true), 'Fora da faculdade');
 
     n.definirSomenteNaFaculdade(false);
-    n.vagasDesocupadas('Bloco U', 1, ['A5']);
+    n.vagasDesocupadas('Bloco U', ['A5']);
     expect(n.itens.length, 2);
     campus.dispose();
   });

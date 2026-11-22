@@ -4,12 +4,11 @@ import 'package:garagem_central/mobile/alertas_controller.dart';
 import 'package:garagem_central/garagem_controller.dart';
 
 void main() {
-  test('garagem começa com 2 níveis de 12 vagas (6 por fileira, igual ao site)', () {
+  test('garagem tem 12 vagas num nível só (6 por fileira, igual ao site)', () {
     final c = GaragemController();
-    expect(c.niveis.length, 2);
+    expect(c.vagas.length, 12);
     expect(c.stats.total, 12);
-    c.setNivel(1);
-    expect(c.stats.total, 12);
+    expect(c.vagas.map((v) => v.code), containsAll(['A1', 'A6', 'B1', 'B6']));
     c.liberar();
     expect(c.stats.ocupadas, 0);
   });

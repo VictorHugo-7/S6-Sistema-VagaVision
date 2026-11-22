@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'app_state.dart';
-import 'carros_controller.dart';
+import 'carros_usuario.dart';
 import 'cena_login.dart';
+import 'estacionamentos.dart';
 import 'garagem_controller.dart';
 import 'garagem_scene.dart';
+import 'marcar_vaga.dart';
 import 'meu_carro.dart';
 import 'ocupacao_ao_vivo.dart';
 import 'tema_controller.dart';
@@ -17,18 +19,24 @@ class MapaPage extends StatelessWidget {
     required this.app,
     required this.garagem,
     required this.meuCarro,
-    required this.carros,
+    required this.carrosUsuario,
+    required this.estacionamentos,
     required this.tema,
     required this.mostrarSair,
+    this.onCadastrarCarro,
     this.reservaInferior = 8,
   });
 
   final AppState app;
   final GaragemController garagem;
   final MeuCarro meuCarro;
-  final CarrosController carros;
+  final CarrosUsuarioController carrosUsuario;
+  final EstacionamentosController estacionamentos;
   final TemaController tema;
   final bool mostrarSair;
+
+  /// Leva o usuário até a tela "Onde parei?" para cadastrar o primeiro carro.
+  final VoidCallback? onCadastrarCarro;
 
   final double reservaInferior;
 
@@ -53,17 +61,19 @@ class MapaPage extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(27),
             child: ListenableBuilder(
-              listenable: Listenable.merge([app, garagem, meuCarro, carros]),
+              listenable: Listenable.merge([app, garagem, meuCarro, carrosUsuario, estacionamentos]),
               builder: (context, _) {
                 final stats = garagem.stats;
                 final alerta = app.nivelAtual(bloco, stats.livres);
-                final cena = GaragemScene(controller: garagem, meuCarro: meuCarro, carros: carros);
+                final cena = GaragemScene(controller: garagem, meuCarro: meuCarro);
                 final estado = _FaixaEstado(
                   alerta: alerta,
                   livres: stats.livres,
                   garagem: garagem,
                   meuCarro: meuCarro,
-                  carros: carros,
+                  carrosUsuario: carrosUsuario,
+                  estacionamentos: estacionamentos,
+                  onCadastrarCarro: onCadastrarCarro,
                 );
                 final controles = _Controles(garagem: garagem);
                 final cartao = _CartaoVagas(bloco: bloco, stats: stats);
@@ -172,7 +182,7 @@ class _Cabecalho extends StatelessWidget {
       children: [
         Text(bloco, style: mono(22, peso: FontWeight.w700, cor: Colors.white), overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
-        Text('Nível ${garagem.nivel + 1} · $vista', style: mono(12, cor: CoresCena.textoSuave)),
+        Text(vista, style: mono(12, cor: CoresCena.textoSuave)),
         const SizedBox(height: 10),
         const Wrap(
           spacing: 8,
@@ -324,28 +334,40 @@ class _FaixaEstado extends StatelessWidget {
     required this.livres,
     required this.garagem,
     required this.meuCarro,
-    required this.carros,
+    required this.carrosUsuario,
+    required this.estacionamentos,
+    this.onCadastrarCarro,
   });
 
   final NivelAlerta? alerta;
   final int livres;
   final GaragemController garagem;
   final MeuCarro meuCarro;
-  final CarrosController carros;
+  final CarrosUsuarioController carrosUsuario;
+  final EstacionamentosController estacionamentos;
+  final VoidCallback? onCadastrarCarro;
 
-  void _estacionarAqui() {
+  Future<void> _estacionarAqui(BuildContext context) async {
     final v = garagem.selecionada;
     if (v == null) return;
-    final antiga = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    final ok = await marcarVaga(
+      context,
+      carros: carrosUsuario,
+      estacionamentos: estacionamentos,
+      vaga: v.code,
+      aoPedirCadastro: onCadastrarCarro,
+    );
+    if (!ok) return;
+    // com a câmera no ar a ocupação vem dela; sem câmera, o app marca a vaga
+    final antiga = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.codigo!) : null;
     if (antiga != null && antiga != v) garagem.liberarVaga(antiga);
     garagem.ocupar(v);
-    meuCarro.marcar(garagem.nivel, v.code);
   }
 
-  void _jaSai() {
-    final v = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+  Future<void> _jaSai(BuildContext context) async {
+    final v = meuCarro.estacionado ? garagem.buscarVaga(meuCarro.codigo!) : null;
+    if (!await registrarSaida(context, estacionamentos: estacionamentos, meuCarro: meuCarro)) return;
     if (v != null) garagem.liberarVaga(v);
-    meuCarro.limpar();
   }
 
   @override
@@ -383,28 +405,11 @@ class _FaixaEstado extends StatelessWidget {
           ],
         ),
       ));
-      final personalizado = v.ocupada ? carros.carroNaVaga(garagem.nivel, v.code) : null;
-      if (personalizado != null) {
-        chips.add(_Chip(
-          cor: context.paleta.superficie,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.directions_car_rounded, size: 16, color: personalizado.carro.cor),
-              const SizedBox(width: 6),
-              Text(
-                personalizado.meu ? personalizado.carro.nome : '${personalizado.carro.nome} · de ${personalizado.dono}',
-                style: mono(12, peso: FontWeight.w700),
-              ),
-            ],
-          ),
-        ));
-      }
-      if (!meuCarro.eMinha(garagem.nivel, v.code)) {
+      if (!meuCarro.eMinha(v.code)) {
         chips.add(_ChipBotao(
           cor: Cores.azulBotao,
           dica: 'Marcar a vaga ${v.code} como a do meu carro',
-          onTap: _estacionarAqui,
+          onTap: () => _estacionarAqui(context),
           child: Text('Estacionei aqui', style: mono(12, peso: FontWeight.w700, cor: Colors.white)),
         ));
       }
@@ -413,7 +418,7 @@ class _FaixaEstado extends StatelessWidget {
       chips.add(_ChipBotao(
         cor: const Color(0xFFFFD93D),
         dica: 'Mostrar onde estacionei no mapa',
-        onTap: () => garagem.irParaVaga(meuCarro.nivel!, meuCarro.codigo!),
+        onTap: () => garagem.irParaVaga(meuCarro.codigo!),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -427,7 +432,7 @@ class _FaixaEstado extends StatelessWidget {
       chips.add(_ChipBotao(
         cor: context.paleta.superficie,
         dica: 'Já saí: liberar a vaga do meu carro',
-        onTap: _jaSai,
+        onTap: () => _jaSai(context),
         child: Text('Já saí', style: mono(12, peso: FontWeight.w700)),
       ));
     }
@@ -532,12 +537,7 @@ class _Controles extends StatelessWidget {
           selecionado: garagem.modo == Modo.d2 ? 0 : 1,
           onSel: (i) => garagem.setModo(i == 0 ? Modo.d2 : Modo.d3),
         ),
-        _Segmentos(
-          rotulos: const ['Nível 1', 'Nível 2'],
-          selecionado: garagem.nivel,
-          onSel: garagem.setNivel,
-        ),
-        if (garagem.leituraAtual case final leitura?)
+        if (garagem.leitura case final leitura?)
           SeloCamera(leitura: leitura, estilo: mono(12, peso: FontWeight.w700), fundo: context.paleta.superficie)
         else
           _Pilula(children: [

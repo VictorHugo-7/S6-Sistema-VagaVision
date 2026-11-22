@@ -8,7 +8,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'carro_desenho.dart';
 import 'carro_personalizado.dart';
-import 'carros_controller.dart';
 import 'cena_login.dart';
 import 'entorno_bloco_u.dart';
 import 'garagem_controller.dart';
@@ -17,13 +16,11 @@ import 'projecao.dart';
 import 'theme.dart';
 
 class GaragemScene extends StatefulWidget {
-  const GaragemScene({super.key, required this.controller, this.meuCarro, this.carros});
+  const GaragemScene({super.key, required this.controller, this.meuCarro});
 
   final GaragemController controller;
 
   final MeuCarro? meuCarro;
-
-  final CarrosController? carros;
 
   @override
   State<GaragemScene> createState() => _GaragemSceneState();
@@ -164,7 +161,6 @@ class _GaragemSceneState extends State<GaragemScene> with SingleTickerProviderSt
                 fundo: context.paleta.fundo,
                 escuro: Theme.of(context).brightness == Brightness.dark,
                 meuCarro: widget.meuCarro,
-                carros: widget.carros,
                 svg: _svg,
               ),
             ),
@@ -184,20 +180,19 @@ class _Face {
 
 class _CenaPainter extends CustomPainter {
   _CenaPainter(this.c, Listenable repaint,
-      {required this.fundo, required this.escuro, this.meuCarro, this.carros, this.svg})
+      {required this.fundo, required this.escuro, this.meuCarro, this.svg})
       : super(repaint: repaint);
 
   final GaragemController c;
   final Color fundo;
   final bool escuro;
   final MeuCarro? meuCarro;
-  final CarrosController? carros;
 
   /// Mapa 2D já carregado (null enquanto carrega).
   final PictureInfo? svg;
 
+  /// Carro desenhado na vaga: sedã ou hatch na cor sorteada para ela.
   CarroPersonalizado _carroDa(Vaga v) =>
-      carros?.carroNaVaga(c.nivel, v.code)?.carro ??
       CarroPersonalizado.padrao(v.corCarro).copyWith(modelo: v.id.isEven ? ModeloCarro.seda : ModeloCarro.hatch);
 
   static const _corLinha = Color(0xFFDEDFD8);
@@ -229,8 +224,8 @@ class _CenaPainter extends CustomPainter {
   /// [cam] é `null` no 2D: lá a vaga é posicionada pelo mapa SVG.
   void _destacarMeuCarro(Canvas canvas, Camara? cam, Size size) {
     final m = meuCarro;
-    if (m == null || !m.estacionado || m.nivel != c.nivel) return;
-    final v = c.buscarVaga(m.nivel!, m.codigo!);
+    if (m == null || !m.estacionado) return;
+    final v = c.buscarVaga(m.codigo!);
     if (v == null) return;
     const amarelo = Color(0xFFFFD93D);
     final pulso = 0.5 + 0.5 * math.sin(DateTime.now().millisecondsSinceEpoch / 260);
@@ -608,12 +603,10 @@ class _CenaPainter extends CustomPainter {
   }
 
   void _rotulo(Canvas canvas, Camara cam, Vaga v) {
-    final personalizado = v.ocupada ? carros?.carroNaVaga(c.nivel, v.code) : null;
-    final p = cam.ponto(V3(v.x, personalizado == null ? 1.55 : 2.05, v.z));
+    final p = cam.ponto(V3(v.x, 1.55, v.z));
     if (p == null) return;
-    final texto = personalizado == null ? v.code : '${v.code} · ${personalizado.carro.nome}';
     final tp = TextPainter(
-      text: TextSpan(text: texto, style: mono(11, peso: FontWeight.w700, cor: CoresCena.texto)),
+      text: TextSpan(text: v.code, style: mono(11, peso: FontWeight.w700, cor: CoresCena.texto)),
       textDirection: TextDirection.ltr,
     )..layout();
     const bolinha = 6.0;
@@ -642,6 +635,5 @@ class _CenaPainter extends CustomPainter {
       old.fundo != fundo ||
       old.escuro != escuro ||
       old.meuCarro != meuCarro ||
-      old.carros != carros ||
       old.svg != svg;
 }

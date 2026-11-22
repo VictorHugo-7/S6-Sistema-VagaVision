@@ -573,11 +573,10 @@ def main():
     parser.add_argument("--repetir", action="store_true", help="volta ao início quando o vídeo acaba (demonstração)")
     parser.add_argument("--inicio", type=float, default=0.0, help="segundo do vídeo em que a análise começa")
     parser.add_argument("--escala", type=float, default=None, help="escala da janela/vídeo anotado (padrão: automática)")
-    parser.add_argument("--firebase", nargs="?", const="firebase-chave.json", default=None, metavar="CHAVE",
-                        help="envia a ocupação para o app via Firestore, usando a chave da conta de serviço "
-                             "(padrão da chave: firebase-chave.json)")
-    parser.add_argument("--bloco", default="Bloco U", help="bloco mostrado no app (padrão: 'Bloco U')")
-    parser.add_argument("--nivel", type=int, default=1, help="nível do bloco que a câmera filma (padrão: 1)")
+    parser.add_argument("--api", action="store_true",
+                        help="envia a ocupação para o app pela API (backend/), que grava no MongoDB. "
+                             "O endereço e o segredo saem do .env da raiz (VAGAVISION_API e DETECTOR_TOKEN)")
+    parser.add_argument("--bloco", default="Bloco U", help="nome do pátio mostrado no app (padrão: 'Bloco U')")
     parser.add_argument("--porta", type=int, default=8765,
                         help="porta do controle remoto: o app e o navegador veem o vídeo e controlam a "
                              "reprodução por ela (padrão: 8765)")
@@ -619,7 +618,7 @@ def main():
 
     # Com janela ou mandando para o app o vídeo anda no ritmo real; só sem janela e sem app
     # ele é processado o mais rápido possível, quadro a quadro.
-    tempo_real = not args.sem_janela or bool(args.firebase)
+    tempo_real = not args.sem_janela or args.api
     escala = args.escala or (1.0 if args.sem_janela else escala_automatica(largura, altura))
 
     gravador = None
@@ -637,15 +636,15 @@ def main():
     if tempo_real and not args.sem_controle:
         from controle_remoto import ServidorControle
 
-        servidor = ServidorControle(args.porta, f"VagaVision - {args.bloco}, Nível {args.nivel}")
+        servidor = ServidorControle(args.porta, f"VagaVision - {args.bloco}")
         print(f"Controle remoto: {servidor.url}  (abra no navegador ou use 'Ver câmera' no app)")
 
     publicador = None
-    if args.firebase:
-        from publicar_firebase import PublicadorFirebase
+    if args.api:
+        from publicar_api import PublicadorApi
 
         extras = {"controle": servidor.url} if servidor else {}
-        publicador = PublicadorFirebase(args.firebase, args.bloco, args.nivel, nome_video, extras=extras)
+        publicador = PublicadorApi(nome_video, extras=extras)
         sem_codigo = [v.id for v in vagas if v.codigo == v.id]
         if sem_codigo:
             print(f"Aviso: vagas sem 'codigo' no {args.vagas} vão para o app com o próprio id: {', '.join(sem_codigo)}")

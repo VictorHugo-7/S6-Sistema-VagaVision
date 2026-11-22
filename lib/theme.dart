@@ -138,7 +138,6 @@ class ConfigPatio {
   static const spotW = 2.5;
   static const spotD = 5.0;
   static const aisle = 3.8;
-  static const numNiveis = 2;
 
   static const larguraPatio = cols * spotW + 4;
   static const profundidadePatio = aisle + 2 * spotD + 4;
