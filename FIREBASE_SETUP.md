@@ -17,8 +17,9 @@ Não precisa registrar nada no Azure/Microsoft: o Google é ativado direto no Fi
    o primeiro botão ("Ativar"), sem o "link por e-mail". Pronto: o Firebase guarda e-mail e senha
    (a senha protegida, nunca em texto) e envia o e-mail de "esqueci minha senha". Não precisa criar tabela nenhuma.
 3. **Build → Firestore Database → Create database** (se ainda não existir) e, na aba **Rules**,
-   cole o conteúdo de `firestore.rules` e publique. As regras também liberam a leitura da coleção
-   `ocupacao` (vagas detectadas pela câmera, ver `visao/README.md`) para usuários logados.
+   cole o conteúdo de `firestore.rules` e publique. O Firestore guarda **só o perfil** (`usuarios`);
+   carros do usuário, registros de estacionamento e a ocupação das vagas ficam no **MongoDB**,
+   pela API em `backend/` (ver o README da raiz).
 4. Em **Authentication → Settings → Authorized domains** confirme que `localhost` está na lista
    (já vem por padrão).
 
@@ -101,10 +102,19 @@ faculdade, em `lib/auth_service.dart` use `static const dominioPermitido = 'maua
 Quem entrar com outro e-mail é deslogado com aviso. Para reforçar no banco, em `firestore.rules`
 a leitura/escrita pode exigir `request.auth.token.email.matches('.*@maua.br')`.
 
-## O que é salvo no banco
+## O que é salvo onde
 
-`usuarios/{uid}`: `nome`, `email`, `foto`, `provedor`, `criadoEm`, `ultimoLogin`.
-Você vê/edita esses dados em Firebase Console → Firestore Database.
+**Firestore** — `usuarios/{uid}`: `nome`, `email`, `foto`, `provedor`, `criadoEm`, `ultimoLogin`.
+Você vê/edita em Firebase Console → Firestore Database. (A coleção `carros` era da aba "Garagem",
+removida; se houver documentos antigos lá, pode apagar a coleção pelo Console.)
+
+**MongoDB** (`backend/`) — `users` (espelho do usuário, sem senha), `cars` (placa, modelo, cor,
+apelido), `parkings` (onde cada carro parou) e `spots` (status das vagas, gravado pelo detector).
+
+A chave da conta de serviço (*Configurações do projeto → Contas de serviço → Gerar nova chave
+privada*, salva como `visao/firebase-chave.json`) é usada pelo **backend** para validar o
+`id_token` de quem chama a API. Ela dá acesso total ao projeto: não compartilhe nem comite
+(já está no `.gitignore`).
 
 ## Testar no celular pelo navegador (Firebase Hosting)
 

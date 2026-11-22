@@ -1,9 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Envia o número de vagas livres para o widget da tela inicial do Android
-/// (código nativo em `android/app/src/main/kotlin/.../MainActivity.kt`).
-/// Em outras plataformas não faz nada.
+/// Envia o número de vagas livres para o widget da tela inicial do Android.
 class WidgetInicial {
   static const _canal = MethodChannel('br.maua.garagem_central/widget');
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../carros_usuario.dart';
+import '../estacionamentos.dart';
+import '../marcar_vaga.dart';
 import '../meu_carro.dart';
 import '../notificacoes.dart';
 import '../ocupacao_ao_vivo.dart';
@@ -9,7 +12,7 @@ import 'quadro_tela.dart';
 import 'theme.dart';
 
 /// Interface sobreposta à cena do Mapa: botão "Alertas" + sair e cartão "Vagas Disponíveis Bloco U"
-/// no topo, seletores 3D/2D e Nível 1/2 logo abaixo, e os botões de ocupação embaixo.
+/// no topo, seletor 3D/2D logo abaixo, e os botões de ocupação embaixo.
 class Hud extends StatelessWidget {
   const Hud({
     super.key,
@@ -17,6 +20,8 @@ class Hud extends StatelessWidget {
     required this.tema,
     required this.notif,
     required this.meuCarro,
+    required this.carrosUsuario,
+    required this.estacionamentos,
     required this.onAlertas,
     required this.onAvisos,
     required this.onPainel,
@@ -27,6 +32,8 @@ class Hud extends StatelessWidget {
   final TemaController tema;
   final NotificacoesController notif;
   final MeuCarro meuCarro;
+  final CarrosUsuarioController carrosUsuario;
+  final EstacionamentosController estacionamentos;
   final VoidCallback onAlertas;
   final VoidCallback onAvisos;
   final VoidCallback onPainel;
@@ -74,11 +81,6 @@ class Hud extends StatelessWidget {
                         selecionado: controller.modo == Modo.d3 ? 0 : 1,
                         onSelecionar: (i) => controller.setModo(i == 0 ? Modo.d3 : Modo.d2),
                       ),
-                      _Segmentos(
-                        opcoes: const ['Nível 1', 'Nível 2'],
-                        selecionado: controller.nivel,
-                        onSelecionar: controller.setNivel,
-                      ),
                       _PilulaIcones(tema: tema, notif: notif, onAvisos: onAvisos, onPainel: onPainel),
                     ],
                   ),
@@ -95,14 +97,20 @@ class Hud extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _FaixaCarro(controller: controller, meuCarro: meuCarro),
+                  _FaixaCarro(
+                    controller: controller,
+                    meuCarro: meuCarro,
+                    carrosUsuario: carrosUsuario,
+                    estacionamentos: estacionamentos,
+                    onCadastrarCarro: onPainel,
+                  ),
                   Wrap(
                     alignment: WrapAlignment.center,
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      // nível com câmera: a ocupação vem do vídeo, então não há sorteio
-                      if (controller.leituraAtual case final leitura?)
+                      // com a câmera no ar a ocupação vem do vídeo, então não há sorteio
+                      if (controller.leitura case final leitura?)
                         SeloCamera(
                           leitura: leitura,
                           estilo: textoMono(12, peso: FontWeight.w700, cor: context.paleta.texto),
@@ -469,32 +477,52 @@ class _PilulaIcones extends StatelessWidget {
 
 /// "Onde estacionei?": botão para marcar a vaga tocada como a do carro e cartão com a vaga marcada.
 class _FaixaCarro extends StatelessWidget {
-  const _FaixaCarro({required this.controller, required this.meuCarro});
+  const _FaixaCarro({
+    required this.controller,
+    required this.meuCarro,
+    required this.carrosUsuario,
+    required this.estacionamentos,
+    this.onCadastrarCarro,
+  });
 
   final GaragemController controller;
   final MeuCarro meuCarro;
+  final CarrosUsuarioController carrosUsuario;
+  final EstacionamentosController estacionamentos;
+  final VoidCallback? onCadastrarCarro;
 
-  void _estacionarAqui() {
+  Future<void> _estacionarAqui(BuildContext context) async {
     final v = controller.selecionada;
     if (v == null) return;
-    final antiga = meuCarro.estacionado ? controller.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+    final ok = await marcarVaga(
+      context,
+      carros: carrosUsuario,
+      estacionamentos: estacionamentos,
+      vaga: v.code,
+      aoPedirCadastro: onCadastrarCarro,
+    );
+    if (!ok) return;
+    final antiga = meuCarro.estacionado ? controller.buscarVaga(meuCarro.codigo!) : null;
     if (antiga != null && antiga != v) controller.liberarVaga(antiga);
     controller.ocupar(v);
-    meuCarro.marcar(controller.nivel, v.code);
   }
 
-  void _jaSai() {
-    final v = meuCarro.estacionado ? controller.buscarVaga(meuCarro.nivel!, meuCarro.codigo!) : null;
+  Future<void> _jaSai(BuildContext context) async {
+    final v = meuCarro.estacionado ? controller.buscarVaga(meuCarro.codigo!) : null;
+    if (!await registrarSaida(context, estacionamentos: estacionamentos, meuCarro: meuCarro)) return;
     if (v != null) controller.liberarVaga(v); // ainda "estacionado": a própria saída não gera aviso
-    meuCarro.limpar();
   }
 
   @override
   Widget build(BuildContext context) {
     final v = controller.selecionada;
     final itens = <Widget>[];
-    if (v != null && !meuCarro.eMinha(controller.nivel, v.code)) {
-      itens.add(_BotaoAcao(texto: 'Estacionei na vaga ${v.code}', principal: true, onTap: _estacionarAqui));
+    if (v != null && !meuCarro.eMinha(v.code)) {
+      itens.add(_BotaoAcao(
+        texto: 'Estacionei na vaga ${v.code}',
+        principal: true,
+        onTap: () => _estacionarAqui(context),
+      ));
     }
     if (meuCarro.estacionado) {
       itens.add(
@@ -507,7 +535,7 @@ class _FaixaCarro extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () => controller.irParaVaga(meuCarro.nivel!, meuCarro.codigo!),
+              onTap: () => controller.irParaVaga(meuCarro.codigo!),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 child: Row(
@@ -526,7 +554,7 @@ class _FaixaCarro extends StatelessWidget {
           ),
         ),
       );
-      itens.add(_BotaoAcao(texto: 'Já saí', onTap: _jaSai));
+      itens.add(_BotaoAcao(texto: 'Já saí', onTap: () => _jaSai(context)));
     }
     if (itens.isEmpty) {
       return Padding(

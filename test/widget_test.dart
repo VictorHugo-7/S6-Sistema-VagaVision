@@ -4,9 +4,9 @@ import 'package:garagem_central/app_state.dart';
 import 'package:garagem_central/garagem_controller.dart';
 
 void main() {
-  test('garagem começa com 2 níveis de 12 vagas', () {
+  test('garagem começa com 12 vagas num nível só', () {
     final c = GaragemController();
-    expect(c.niveis.length, 2);
+    expect(c.vagas.length, 12);
     expect(c.stats.total, 12);
     c.liberar();
     expect(c.stats.ocupadas, 0);

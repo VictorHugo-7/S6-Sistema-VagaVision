@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -35,11 +35,7 @@ class Estatisticas {
   int get pctOcupado => total == 0 ? 0 : (ocupadas / total * 100).round();
 }
 
-/// Onde o bloco de vagas fica no mapa 2D (assets/mapa_modelo_construcoes.svg, viewBox 577×457).
-///
-/// Valores medidos no próprio SVG: a faixa diagonal ao lado do Bloco U. O tamanho e a posição
-/// do bloco são calculados a partir do ConfigPatio, então ele continua cabendo na faixa mesmo
-/// se o número de vagas ou as medidas mudarem.
+/// Onde o bloco de vagas fica no mapa 2D (assets/mapa_modelo_construcoes.svg).
 class VagasSvg {
   /// Ponta de cima da faixa (meio da borda), em fração do SVG (x/largura, y/altura).
   static const pontaFaixa = Offset(0.44350, 0.43742);
@@ -60,13 +56,9 @@ class VagasSvg {
 /// Estado da garagem (vagas, nível, modo) e da câmera orbital / pan 2D.
 class GaragemController extends ChangeNotifier {
   GaragemController() {
-    for (var n = 0; n < ConfigPatio.numNiveis; n++) {
-      niveis.add(_construirNivel());
-    }
-    for (final nivel in niveis) {
-      for (final vaga in nivel) {
-        _definirOcupacao(vaga, _rng.nextDouble() < 0.55);
-      }
+    vagas.addAll(_construirVagas());
+    for (final vaga in vagas) {
+      _definirOcupacao(vaga, _rng.nextDouble() < 0.55);
     }
   }
 
@@ -89,10 +81,11 @@ class GaragemController extends ChangeNotifier {
   static const _phiPadrao = math.pi * 0.32;
 
   final _rng = math.Random();
-  final List<List<Vaga>> niveis = [];
+
+  /// Todas as vagas do pátio.
+  final List<Vaga> vagas = [];
 
   Modo _modo = Modo.d2;
-  int _nivel = 0;
   Vaga? _selecionada;
 
   // câmera (começa afastada e "voa" até a posição padrão)
@@ -102,9 +95,7 @@ class GaragemController extends ChangeNotifier {
   double _alvoX = 0, _alvoZ = 0;
   double _zoomOrto = 1;
 
-  // mapa 2D (coordenadas em unidades do SVG, como um mapa: centro + zoom)
-  // O zoom é relativo ao "SVG inteiro na tela" (= 1). Os limites e a vista inicial são
-  // calculados pelo tamanho do bloco de vagas, então funcionam em qualquer tela.
+  // mapa 2D (coordenadas em unidades do SVG: centro + zoom)
 
   /// Ao abrir o 2D, o bloco de vagas ocupa esta fração do menor lado da tela.
   static const _fracaoTelaAoAbrir = 0.35;
@@ -134,16 +125,13 @@ class GaragemController extends ChangeNotifier {
   /// A bússola só aparece com o mapa girado.
   bool get mostrarBussola => _modo == Modo.d2 && _giro2d.abs() > 0.01;
 
-  /// Última leitura da câmera de cada nível (pelo índice). Níveis sem câmera seguem simulados.
-  final Map<int, LeituraNivel> aoVivo = {};
+  LeituraPatio? _leitura;
 
   Modo get modo => _modo;
-  int get nivel => _nivel;
   Vaga? get selecionada => _selecionada;
-  List<Vaga> get vagas => niveis[_nivel];
 
-  /// Leitura da câmera do nível exibido, ou `null` se ele não tem câmera.
-  LeituraNivel? get leituraAtual => aoVivo[_nivel];
+  /// Última leitura da câmera, ou `null` enquanto ela não chegou (aí a ocupação é simulada).
+  LeituraPatio? get leitura => _leitura;
 
   Estatisticas get stats {
     final ocupadas = vagas.where((v) => v.ocupada).length;
@@ -152,7 +140,7 @@ class GaragemController extends ChangeNotifier {
 
   // ---------- construção ----------
 
-  List<Vaga> _construirNivel() {
+  List<Vaga> _construirVagas() {
     final vagas = <Vaga>[];
     const fileiras = [
       ('A', -(ConfigPatio.aisle / 2 + ConfigPatio.spotD / 2), math.pi),
@@ -198,15 +186,8 @@ class GaragemController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setNivel(int n) {
-    if (n == _nivel) return;
-    _nivel = n;
-    _selecionada = null;
-    notifyListeners();
-  }
-
   void sortear() {
-    if (leituraAtual != null) return; // quem decide é a câmera
+    if (_leitura != null) return; // quem decide é a câmera
     for (final v in vagas) {
       _definirOcupacao(v, _rng.nextDouble() < 0.62);
     }
@@ -215,7 +196,7 @@ class GaragemController extends ChangeNotifier {
   }
 
   void liberar() {
-    if (leituraAtual != null) return;
+    if (_leitura != null) return;
     for (final v in vagas) {
       v.ocupada = false;
     }
@@ -223,15 +204,14 @@ class GaragemController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// `true` se a vaga fica num nível com câmera.
-  bool _naCamera(Vaga vaga) => aoVivo.keys.any((n) => niveis[n].contains(vaga));
+  /// `true` enquanto a câmera estiver mandando a ocupação (aí o app não mexe nela).
+  bool get _naCamera => _leitura != null;
 
   /// Aplica a ocupação detectada pela câmera (ver `OcupacaoAoVivo`).
-  void aplicarLeitura(LeituraNivel leitura) {
-    if (leitura.nivel >= niveis.length) return;
-    aoVivo[leitura.nivel] = leitura;
+  void aplicarLeitura(LeituraPatio leitura) {
+    _leitura = leitura;
     final agora = DateTime.now();
-    for (final v in niveis[leitura.nivel]) {
+    for (final v in vagas) {
       final l = leitura.vagas[v.code];
       if (l == null) continue;
       v.ocupada = l.ocupada;
@@ -241,36 +221,34 @@ class GaragemController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Vaga do [nivel] (0 = Nível 1) com o [codigo], ou `null`.
-  Vaga? buscarVaga(int nivel, String codigo) {
-    if (nivel < 0 || nivel >= niveis.length) return null;
-    for (final v in niveis[nivel]) {
+  /// Vaga com o [codigo] (ex.: 'A3'), ou `null`.
+  Vaga? buscarVaga(String codigo) {
+    for (final v in vagas) {
       if (v.code == codigo) return v;
     }
     return null;
   }
 
-  /// Marca a vaga como ocupada (o usuário estacionou nela). Em nível com câmera, a
+  /// Marca a vaga como ocupada (o usuário estacionou nela). Com a câmera no ar, a
   /// ocupação vem dela e não muda aqui.
   void ocupar(Vaga vaga) {
-    if (vaga.ocupada || _naCamera(vaga)) return;
+    if (vaga.ocupada || _naCamera) return;
     vaga.ocupada = true;
     vaga.minutosOcupada = 0;
     notifyListeners();
   }
 
-  /// Libera a vaga (o usuário saiu). Em nível com câmera, quem libera é ela.
+  /// Libera a vaga (o usuário saiu). Com a câmera no ar, quem libera é ela.
   void liberarVaga(Vaga vaga) {
-    if (!vaga.ocupada || _naCamera(vaga)) return;
+    if (!vaga.ocupada || _naCamera) return;
     vaga.ocupada = false;
     notifyListeners();
   }
 
-  /// Vai para o [nivel] e seleciona a vaga [codigo] (usado por "Onde estacionei?").
-  void irParaVaga(int nivel, String codigo) {
-    final v = buscarVaga(nivel, codigo);
+  /// Seleciona a vaga [codigo] (usado por "Onde parei?").
+  void irParaVaga(String codigo) {
+    final v = buscarVaga(codigo);
     if (v == null) return;
-    _nivel = nivel;
     _selecionada = v;
     notifyListeners();
   }
@@ -431,8 +409,6 @@ class GaragemController extends ChangeNotifier {
   }
 
   /// Pixels de tela por unidade do SVG (zoom 1 = SVG inteiro cabendo na tela).
-  /// Também garante a vista inicial nas vagas: quem desenha sempre passa por aqui,
-  /// então o enquadramento acontece mesmo que ninguém chame [prepararTela2d] antes.
   double escala2d(Size tela) {
     prepararTela2d(tela);
     return math.min(tela.width / _svg.width, tela.height / _svg.height) * 0.96 * _zoom2d;
@@ -503,7 +479,7 @@ class GaragemController extends ChangeNotifier {
       final v = _vagaNoSvg(telaParaSvg(pos, tela));
       if (v == null) return;
       // com câmera, o toque só seleciona (a ocupação vem do vídeo)
-      if (leituraAtual == null) _definirOcupacao(v, !v.ocupada);
+      if (_leitura == null) _definirOcupacao(v, !v.ocupada);
       _selecionada = v;
       notifyListeners();
       return;
@@ -518,7 +494,7 @@ class GaragemController extends ChangeNotifier {
     for (final v in vagas) {
       if ((hx - v.x).abs() <= (ConfigPatio.spotW - 0.5) / 2 && (hz - v.z).abs() <= (ConfigPatio.spotD - 0.9) / 2) {
         // com câmera, o toque só seleciona (a ocupação vem do vídeo)
-        if (leituraAtual == null) _definirOcupacao(v, !v.ocupada);
+        if (_leitura == null) _definirOcupacao(v, !v.ocupada);
         _selecionada = v;
         notifyListeners();
         return;

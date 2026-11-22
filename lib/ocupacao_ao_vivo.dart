@@ -1,113 +1,124 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import 'auth_service.dart';
+import 'api.dart';
 import 'janela_camera.dart';
 
 /// Estado de uma vaga lido da câmera.
 typedef LeituraVaga = ({bool ocupada, DateTime? desde});
 
-/// Ocupação de um nível do bloco enviada pelo detector (visao/detectar_ocupacao.py --firebase).
-class LeituraNivel {
-  const LeituraNivel({
-    required this.nivel,
+/// Ocupação do pátio como está no banco (coleção `spots`), preenchida pelo detector
+/// de visão computacional (visao/detectar_ocupacao.py --api).
+class LeituraPatio {
+  const LeituraPatio({
     required this.vagas,
     required this.atualizadoEm,
     this.fonte,
     this.controle,
   });
 
-  /// 0 = Nível 1 (mesmo índice de `GaragemController.niveis`).
-  final int nivel;
   final Map<String, LeituraVaga> vagas;
+
+  /// Gravação mais recente do detector (vem do `updatedAt` das vagas).
   final DateTime atualizadoEm;
+
+  /// Vídeo ou câmera de onde vem a detecção.
   final String? fonte;
 
   /// Endereço do controle remoto do detector (vídeo + pausar/pular), ex. http://192.168.0.10:8765.
   final String? controle;
 
-  /// O detector regrava o documento a cada 30 s; sem notícias há mais tempo que isso,
+  /// O detector regrava a cada 30 s; sem notícias há mais tempo que isso,
   /// a câmera (ou o computador do detector) caiu.
   static const tolerancia = Duration(minutes: 2);
 
   bool online([DateTime? agora]) => (agora ?? DateTime.now()).difference(atualizadoEm) <= tolerancia;
 
-  /// Converte o documento `ocupacao/{bloco}-{nivel}` do Firestore. Devolve `null` se o
-  /// documento estiver incompleto.
-  static LeituraNivel? doDocumento(Map<String, dynamic> dados) {
-    final nivel = dados['nivel'];
-    final vagas = dados['vagas'];
-    if (nivel is! int || nivel < 1 || vagas is! Map) return null;
+  int get total => vagas.length;
+  int get ocupadas => vagas.values.where((v) => v.ocupada).length;
+
+  /// Converte a resposta de `GET /api/vagas`. Devolve `null` se vier sem vagas
+  /// (banco ainda sem o seed, por exemplo) — aí o app segue com a simulação.
+  static LeituraPatio? doJson(Object? json) {
+    if (json is! Map) return null;
+    final lista = json['vagas'];
+    if (lista is! List || lista.isEmpty) return null;
+
     final leituras = <String, LeituraVaga>{};
-    for (final MapEntry(:key, :value) in vagas.entries) {
-      if (key is! String || value is! Map || value['ocupada'] is! bool) continue;
-      leituras[key] = (ocupada: value['ocupada'] as bool, desde: _data(value['desde']));
+    for (final item in lista) {
+      if (item is! Map) continue;
+      final codigo = item['codigo'];
+      if (codigo is! String) continue;
+      leituras[codigo] = (ocupada: item['status'] == 'ocupada', desde: _data(item['desde']));
     }
-    return LeituraNivel(
-      nivel: nivel - 1,
+    if (leituras.isEmpty) return null;
+
+    return LeituraPatio(
       vagas: leituras,
-      // logo após a gravação o horário do servidor ainda não chegou (fica nulo): usa agora
-      atualizadoEm: _data(dados['atualizadoEm']) ?? DateTime.now(),
-      fonte: dados['fonte'] as String?,
-      controle: dados['controle'] is String ? dados['controle'] as String : null,
+      // sem atualizadoEm (nenhuma gravação ainda) o selo já nasce "offline", que é a verdade
+      atualizadoEm: _data(json['atualizadoEm']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      fonte: json['fonte'] as String?,
+      controle: json['controle'] is String ? json['controle'] as String : null,
     );
   }
 
-  static DateTime? _data(Object? v) => switch (v) {
-        Timestamp t => t.toDate(),
-        DateTime d => d,
-        _ => null,
-      };
+  static DateTime? _data(Object? v) => v is String ? DateTime.tryParse(v)?.toLocal() : null;
 }
 
-/// Escuta no Firestore a ocupação detectada pela câmera e repassa cada nível recebido.
-/// Só funciona com usuário logado (as regras do Firestore exigem login para ler).
+/// Busca a ocupação na API de tempo em tempo e repassa cada leitura recebida.
 class OcupacaoAoVivo {
-  OcupacaoAoVivo(this.aoReceber, {this.bloco = 'Bloco U'});
+  OcupacaoAoVivo(this.aoReceber, {Api? api, this.intervalo = const Duration(seconds: 3)})
+      : _api = api ?? Api();
 
-  final void Function(LeituraNivel leitura) aoReceber;
-  final String bloco;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _assinatura;
+  final void Function(LeituraPatio leitura) aoReceber;
+  final Api _api;
 
-  bool get ativo => _assinatura != null;
+  /// Tempo entre duas buscas.
+  final Duration intervalo;
+
+  Timer? _timer;
+  bool _buscando = false;
+  bool _erroAvisado = false;
+
+  bool get ativo => _timer != null;
 
   void iniciar() {
-    if (!AuthService.pronto || _assinatura != null) return;
-    _assinatura = FirebaseFirestore.instance
-        .collection('ocupacao')
-        .where('bloco', isEqualTo: bloco)
-        .snapshots()
-        .listen(
-      (consulta) {
-        for (final doc in consulta.docs) {
-          final leitura = LeituraNivel.doDocumento(doc.data());
-          if (leitura != null) aoReceber(leitura);
-        }
-      },
-      onError: (Object e) {
-        // ex.: regras do Firestore ainda não publicadas; o app segue com a simulação
-        debugPrint('Ocupação ao vivo indisponível: $e');
-        _assinatura = null;
-      },
-    );
+    if (_timer != null) return;
+    _timer = Timer.periodic(intervalo, (_) => _buscar());
+    _buscar(); // não espera o primeiro intervalo
+  }
+
+  Future<void> _buscar() async {
+    if (_buscando) return; // a busca anterior ainda não voltou: não enfileira
+    _buscando = true;
+    try {
+      final leitura = LeituraPatio.doJson(await _api.get('/vagas'));
+      if (leitura != null) aoReceber(leitura);
+      _erroAvisado = false;
+    } on ErroApi catch (e) {
+      // backend fora do ar ou sessão expirada: o app segue com a simulação.
+      // Avisa uma vez só para não encher o console a cada 3 s.
+      if (!_erroAvisado) {
+        debugPrint('Ocupação ao vivo indisponível: ${e.mensagem}');
+        _erroAvisado = true;
+      }
+    } finally {
+      _buscando = false;
+    }
   }
 
   void parar() {
-    _assinatura?.cancel();
-    _assinatura = null;
+    _timer?.cancel();
+    _timer = null;
   }
 }
 
-/// Selo "Câmera ao vivo" (ou "Câmera offline há X min") para o nível que tem câmera.
-/// Ocupa o lugar dos botões de simulação; se reavalia sozinho porque a câmera pode
-/// parar de mandar notícias sem nenhum evento chegar. Com a câmera no ar, um toque abre
-/// a janela com o vídeo e os controles de reprodução.
+/// Selo "Câmera ao vivo" (ou "Câmera offline há X min") do pátio.
 class SeloCamera extends StatefulWidget {
   const SeloCamera({super.key, required this.leitura, required this.estilo, required this.fundo, this.borda});
 
-  final LeituraNivel leitura;
+  final LeituraPatio leitura;
   final TextStyle estilo;
   final Color fundo;
   final Color? borda;
@@ -158,7 +169,7 @@ class _SeloCameraState extends State<SeloCamera> {
           borderRadius: raio,
           onTap: controle == null
               ? null
-              : () => JanelaCamera.abrir(context, controle, titulo: 'Câmera · Nível ${leitura.nivel + 1}'),
+              : () => JanelaCamera.abrir(context, controle, titulo: 'Câmera ao vivo${fonte.isEmpty ? '' : fonte}'),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
@@ -173,7 +184,10 @@ class _SeloCameraState extends State<SeloCamera> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(online ? 'Câmera ao vivo' : 'Câmera offline há $minutos min', style: widget.estilo),
+                Text(
+                  online ? 'Câmera ao vivo' : (minutos > 9999 ? 'Câmera sem dados' : 'Câmera offline há $minutos min'),
+                  style: widget.estilo,
+                ),
                 if (controle != null) ...[
                   const SizedBox(width: 8),
                   Icon(Icons.videocam_rounded, size: 18, color: widget.estilo.color),

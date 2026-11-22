@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 import 'alertas_page.dart';
 import 'app_state.dart';
 import 'avisos_page.dart';
-import 'carros_controller.dart';
+import 'carros_usuario.dart';
 import 'cena_login.dart';
+import 'estacionamentos.dart';
 import 'garagem_controller.dart';
-import 'garagem_custom_page.dart';
 import 'logo.dart';
-import 'historico.dart';
 import 'localizacao.dart';
 import 'mapa_page.dart';
 import 'meu_carro.dart';
-import 'painel_page.dart';
+import 'onde_parei_page.dart';
 import 'notificacoes.dart';
 import 'tema_controller.dart';
 import 'theme.dart';
@@ -22,13 +21,11 @@ const _itens = [
   (Icons.location_on, 'Mapa'),
   (Icons.priority_high_rounded, 'Alertas'),
   (Icons.notifications_rounded, 'Avisos'),
-  (Icons.insert_chart_rounded, 'Painel'),
-  (Icons.directions_car_rounded, 'Garagem'),
+  (Icons.pin_drop_rounded, 'Onde parei?'),
 ];
 
 const _abaAvisos = 2;
-const _abaPainel = 3;
-const _abaGaragem = 4;
+const _abaOndeParei = 3;
 
 class _IconeAba extends StatelessWidget {
   const _IconeAba({required this.indice, required this.notif, required this.cor, required this.tamanho});
@@ -65,9 +62,9 @@ class Shell extends StatefulWidget {
     required this.tema,
     required this.notif,
     required this.meuCarro,
-    required this.historico,
     required this.campus,
-    required this.carros,
+    required this.carrosUsuario,
+    required this.estacionamentos,
   });
 
   final AppState app;
@@ -75,9 +72,9 @@ class Shell extends StatefulWidget {
   final TemaController tema;
   final NotificacoesController notif;
   final MeuCarro meuCarro;
-  final HistoricoOcupacao historico;
   final LocalizacaoCampus campus;
-  final CarrosController carros;
+  final CarrosUsuarioController carrosUsuario;
+  final EstacionamentosController estacionamentos;
 
   @override
   State<Shell> createState() => _ShellState();
@@ -101,9 +98,11 @@ class _ShellState extends State<Shell> {
         app: widget.app,
         garagem: widget.garagem,
         meuCarro: widget.meuCarro,
-        carros: widget.carros,
+        carrosUsuario: widget.carrosUsuario,
+        estacionamentos: widget.estacionamentos,
         tema: widget.tema,
         mostrarSair: !navegacaoLateral,
+        onCadastrarCarro: () => _trocarAba(_abaOndeParei),
         reservaInferior: reservaInferior,
       );
     }
@@ -113,9 +112,14 @@ class _ShellState extends State<Shell> {
         meuCarro: widget.meuCarro,
         onVoltar: () => _trocarAba(0),
       );
-    if (_aba == _abaGaragem) return GaragemCustomPage(carros: widget.carros);
-    if (_aba == _abaPainel) {
-      return PainelPage(historico: widget.historico, garagem: widget.garagem, onVoltar: () => _trocarAba(0));
+    if (_aba == _abaOndeParei) {
+      return OndePareiPage(
+        garagem: widget.garagem,
+        meuCarro: widget.meuCarro,
+        carros: widget.carrosUsuario,
+        estacionamentos: widget.estacionamentos,
+        onVoltar: () => _trocarAba(0),
+      );
     }
     final bloco = _blocoEditando;
     if (bloco != null) {
@@ -299,7 +303,14 @@ class _ItemMenu extends StatelessWidget {
           children: [
             _IconeAba(indice: indice, notif: notif, tamanho: 24, cor: corIcone),
             const SizedBox(height: 2),
-            Text(rotulo, style: mono(11, peso: FontWeight.w700, cor: corTexto)),
+            // uma linha só: com a fonte do sistema ampliada, um rótulo de duas
+            // linhas estoura a altura fixa da barra
+            Text(
+              rotulo,
+              style: mono(11, peso: FontWeight.w700, cor: corTexto),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       );

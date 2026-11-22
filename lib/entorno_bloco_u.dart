@@ -2,10 +2,6 @@ import 'projecao.dart';
 import 'theme.dart';
 
 /// Retângulo no chão, em metros, nas coordenadas da planta do campus.
-///
-/// A planta foi girada 46° para alinhar a fileira de vagas na horizontal
-/// (escala medida: ~7,4 px por metro, usando a vaga de 2,50 m como régua).
-/// Origem no canto noroeste da fileira dupla; X segue a fileira (leste) e Z vai para o sul.
 class AreaPlanta {
   const AreaPlanta(this.x0, this.x1, this.z0, this.z1);
 

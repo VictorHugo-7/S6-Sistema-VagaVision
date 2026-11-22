@@ -57,45 +57,53 @@ python detectar_ocupacao.py estacionamento.mp4 --vagas bloco_u.json --repetir
 
 ### 3. Mandar para o app (tempo real)
 
-O detector grava o estado das vagas no Cloud Firestore e o app (web e celular) atualiza o mapa,
-os avisos de "vaga desocupada", os alertas e o painel na hora.
+O detector manda o estado das vagas para a API (`backend/`), que grava na coleção `spots` do
+MongoDB. O app (web e celular) consulta a cada 3 s e atualiza o mapa e os avisos de
+"vaga desocupada" na hora.
 
-1. **Chave da conta de serviço (uma vez):** Console do Firebase → ⚙ Configurações do projeto →
-   Contas de serviço → **Gerar nova chave privada**. Salve o arquivo como `visao/firebase-chave.json`.
-   Ele dá acesso total ao banco: **não compartilhe nem envie ao GitHub** (já está no `.gitignore`).
-2. **Regras do Firestore (uma vez):** publique o `firestore.rules` da raiz do projeto
-   (Console → Firestore → Regras, colar e Publicar; ou `firebase deploy --only firestore:rules`).
-   Elas deixam qualquer usuário logado ler a ocupação e só o detector gravar.
+1. **Backend rodando:** na pasta `backend`, `npm install` (só a primeira vez), `npm run seed` e
+   `npm start`. Veja o README da raiz.
+2. **Variáveis de ambiente (uma vez):** copie o `.env.example` da raiz para `.env` e preencha
+   `DETECTOR_TOKEN` (o mesmo segredo que o backend usa) e `VAGAVISION_API`
+   (padrão `http://localhost:3000/api`). O `.env` está no `.gitignore` — não comite.
 3. **Código de cada vaga no app:** no `vagas.json`, cada vaga tem `"codigo"` (ex.: `"V10"` → `"A3"`).
    A fileira A (em cima no mapa do app) é a da frente do vídeo, mais perto da câmera, e a B (embaixo)
    é a de trás; a vaga 1 do app é a da direita do vídeo (o mapa vê o pátio do lado oposto ao da
    câmera). Para inverter, troque os códigos.
-   Vaga sem `codigo` vai com o próprio id.
+   Vaga sem `codigo` vai com o próprio id. É daqui que o `npm run seed` tira as vagas iniciais.
 4. **Rodar:**
 
 ```bash
-python detectar_ocupacao.py ..\videos\teste_carros.mp4 --firebase
-python detectar_ocupacao.py ..\videos\teste_carros.mp4 --firebase --sem-janela --repetir   # demonstração contínua
-python detectar_ocupacao.py ..\videos\teste_carros.mp4 --firebase --inicio 140             # começa em 2:20
+python detectar_ocupacao.py ..\videos\teste_carros.mp4 --api
+python detectar_ocupacao.py ..\videos\teste_carros.mp4 --api --sem-janela --repetir   # demonstração contínua
+python detectar_ocupacao.py ..\videos\teste_carros.mp4 --api --inicio 140             # começa em 2:20
 ```
 
-Opções: `--bloco "Bloco U"` e `--nivel 1` dizem qual nível do app a câmera filma (padrão: Bloco U, Nível 1).
-O documento gravado é `ocupacao/bloco-u-1`; ele é regravado a cada 30 s mesmo sem mudanças.
+No Windows, `iniciar_camera.bat` faz a terceira linha com duplo clique (e avisa se o `.venv`,
+o vídeo ou o `.env` não estiverem no lugar).
 
-No app, o nível com câmera mostra **"Câmera ao vivo"** no lugar de "Sortear / Liberar" (o toque numa vaga
-só seleciona; quem decide a ocupação é o vídeo). Se o detector parar, depois de 2 min aparece
-**"Câmera offline há X min"** e o mapa fica com a última leitura. Níveis sem câmera continuam simulados.
+O detector faz `PUT /api/vagas/status` a cada mudança e, mesmo sem mudanças, a cada 30 s — é esse
+batimento que diz ao app que a câmera está no ar. `--bloco "Bloco U"` só muda o nome que aparece
+no título do controle remoto.
+
+No app, com a câmera no ar aparece **"Câmera ao vivo"** no lugar de "Sortear / Liberar" (o toque numa
+vaga só seleciona; quem decide a ocupação é o vídeo). Se o detector parar, depois de 2 min aparece
+**"Câmera offline há X min"** e o mapa fica com a última leitura. Sem nenhuma leitura no banco, a
+ocupação volta a ser simulada.
+
+Se o backend estiver fora do ar ou o token estiver errado, o detector avisa no terminal e fica
+tentando de novo — o vídeo não para.
 
 Sem `--sem-janela` o vídeo roda no ritmo real (o YOLO roda em paralelo e, se o computador não der
-conta, quadros são pulados em vez de o vídeo ficar lento); com `--sem-janela --firebase` também,
+conta, quadros são pulados em vez de o vídeo ficar lento); com `--sem-janela --api` também,
 para o app ver as mudanças no tempo em que aconteceram.
 
 ### 4. Ver e controlar o vídeo pelo app (apresentação)
 
-Com a janela aberta ou com `--firebase`, o detector liga um controle remoto na porta 8765 e
+Com a janela aberta ou com `--api`, o detector liga um controle remoto na porta 8765 e
 mostra o endereço no terminal (`Controle remoto: http://192.168.x.x:8765`).
 
-- **No app:** toque no selo **"Câmera ao vivo · Ver"** do Nível 1. Abre uma janela por cima do mapa
+- **No app:** toque no selo **"Câmera ao vivo · Ver"**. Abre uma janela por cima do mapa
   com o vídeo das vagas coloridas, play/pausa, voltar ao início, ±10 s, a barra para ir a qualquer
   momento e a velocidade (0,5x, 1x, 2x, 4x). Arraste pela barra de título e mude o tamanho pelo canto.
   O botão ↗ abre o vídeo **em outra aba** do navegador.
